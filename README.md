@@ -1,185 +1,118 @@
-# TripPlanner
+# NOMAD
 
-A full-stack travel planning web application with drag-and-drop itinerary building, place management, packing lists, and Google Maps integration.
+**Navigation Organizer for Maps, Activities & Destinations**
+
+A self-hosted travel planner for organizing trips, places, budgets, packing lists, and more.
+
+![License](https://img.shields.io/github/license/mauriceboe/NOMAD)
 
 ## Features
 
-- **Drag & Drop Planner**: Drag places from the sidebar onto day columns; reorder within days or move between days
-- **Place Management**: Add places with address, price, tags, categories, reservation status, and visit time
-- **Google Maps Integration**: Search Google Places to auto-fill place details (requires API key)
-- **Packing Lists**: Grouped packing lists with progress tracking and quick-add suggestions
-- **Trip Management**: Multiple trips with date ranges, automatic day generation
-- **Categories & Tags**: Color-coded organization of places
-- **Admin Panel**: User management and platform statistics
-- **JWT Authentication**: Secure login and registration
+- **Drag & Drop Planner** — Organize places into day plans with drag & drop
+- **Google Maps Integration** — Search and auto-fill place details
+- **Budget Tracking** — Track expenses per trip with pie chart overview
+- **Packing Lists** — Grouped lists with progress tracking and suggestions
+- **Photo Gallery** — Upload and manage trip photos
+- **File Storage** — Attach documents, tickets, and PDFs to trips
+- **Reservations** — Track booking status and details
+- **Weather** — Weather forecasts for your destinations
+- **PDF Export** — Export trip plans as PDF
+- **Multi-User** — Invite members to collaborate on trips
+- **Admin Panel** — User management, backups, and app settings
+- **Dark Mode** — Full light/dark theme support
+- **i18n** — English and German
 
 ## Tech Stack
 
-- **Backend**: Node.js + Express + SQLite (better-sqlite3)
-- **Frontend**: React 18 + Vite + Tailwind CSS v3
-- **State**: Zustand with optimistic updates
-- **DnD**: @dnd-kit/core + @dnd-kit/sortable
-- **Auth**: JWT tokens
+- **Backend**: Node.js 22 + Express + SQLite (`node:sqlite`)
+- **Frontend**: React 18 + Vite + Tailwind CSS
+- **State**: Zustand
+- **Auth**: JWT
+- **Maps**: Leaflet + Google Places API
 - **Icons**: lucide-react
 
-## Default Admin Credentials
-
-```
-Email: admin@admin.com
-Password: admin123
-```
-
-Change these credentials after first login in production!
-
-## Development Setup
+## Deployment with Docker
 
 ### Prerequisites
 
-- Node.js 18+
-- npm or yarn
+- Docker & Docker Compose
+- A Google Maps API key (optional, for place search)
 
-### 1. Install Server Dependencies
-
-```bash
-cd server
-npm install
-```
-
-### 2. Configure Server Environment
+### 1. Clone the repository
 
 ```bash
-cp .env.example .env
-# Edit .env and set a secure JWT_SECRET
+git clone https://github.com/mauriceboe/NOMAD.git
+cd NOMAD
 ```
 
-### 3. Install Client Dependencies
+### 2. Configure environment
 
 ```bash
-cd client
-npm install
+cp server/.env.example .env
 ```
 
-### 4. Run Development Servers
+Edit the `.env` or set variables in `docker-compose.yml`:
 
-In two separate terminals:
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `JWT_SECRET` | Yes | Secret key for JWT signing (min. 32 characters) |
+| `ALLOWED_ORIGINS` | No | Comma-separated list of allowed origins (default: `http://localhost:3000`) |
+| `PORT` | No | Server port (default: `3000`) |
+
+### 3. Start the app
 
 ```bash
-# Terminal 1 - Server (from /server directory)
-npm run dev
-
-# Terminal 2 - Client (from /client directory)
-npm run dev
+docker compose up -d --build
 ```
 
-The server runs on http://localhost:3001 and the client on http://localhost:5173.
-The Vite dev server proxies /api requests to the Express server automatically.
+The app is now running. Open your browser and navigate to your server's IP or domain on port `3000`.
 
-## Production Build
+### 4. First setup
 
-### Manual
+The first user to register automatically becomes the **admin**. No default credentials — you create your own account.
+
+### Updating
 
 ```bash
-# Build the client
-cd client
-npm run build
-
-# The built files go to client/dist/
-# Copy them to server/public/
-cp -r dist ../server/public
-
-# Run the server in production mode
-cd ../server
-NODE_ENV=production node src/index.js
+git pull
+docker compose up -d --build
 ```
 
-### Docker
+Your data is persisted in the `./data` and `./uploads` volumes.
 
-```bash
-# Build and run with Docker Compose
-docker-compose up --build
+### Reverse Proxy (recommended)
 
-# The app will be available at http://localhost:3000
+For production, put NOMAD behind a reverse proxy (Nginx, Caddy, Traefik) with HTTPS.
+
+Example with **Caddy** (`Caddyfile`):
+
+```
+nomad.yourdomain.com {
+    reverse_proxy localhost:3000
+}
 ```
 
-## Environment Variables
+Update `ALLOWED_ORIGINS` in `docker-compose.yml` to match your domain:
 
-### Server (.env)
+```yaml
+environment:
+  - ALLOWED_ORIGINS=https://nomad.yourdomain.com
+```
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `3001` | Server port |
-| `JWT_SECRET` | (required) | Secret key for JWT signing |
-| `NODE_ENV` | `development` | Environment mode |
-
-In production, set a strong random JWT_SECRET (at least 32 characters).
-
-## Google Maps API Key Setup
+## Google Maps API Setup
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing
-3. Enable the **Places API (New)**
-4. Create an API key under Credentials
-5. Optionally restrict the key to your domain
-6. In the app: go to a trip → Settings tab → enter your API key
+2. Create a project and enable the **Places API (New)**
+3. Create an API key under Credentials
+4. In NOMAD: Admin Panel → API Keys → enter your key
 
-The Maps integration allows:
-- Searching places by name/query
-- Auto-filling place details (name, address, coordinates, phone, website)
+## Data & Backups
 
-## SQLite Database
+- **Database**: SQLite, stored in `./data/travel.db`
+- **Uploads**: Stored in `./uploads/`
+- **Backups**: Can be created and managed in the Admin Panel
+- **Auto-Backups**: Configurable schedule in Admin Panel
 
-The database is stored at `./data/travel.db` (relative to the server process working directory).
-In Docker, this is mounted as a volume at `./data`.
+## License
 
-## API Endpoints
-
-### Auth
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `GET /api/auth/me`
-- `PUT /api/auth/me/maps-key`
-
-### Trips
-- `GET /api/trips`
-- `POST /api/trips`
-- `GET /api/trips/:id`
-- `PUT /api/trips/:id`
-- `DELETE /api/trips/:id`
-
-### Days
-- `GET /api/trips/:tripId/days`
-- `POST /api/trips/:tripId/days`
-- `PUT /api/trips/:tripId/days/:id`
-- `DELETE /api/trips/:tripId/days/:id`
-
-### Places
-- `GET /api/trips/:tripId/places`
-- `POST /api/trips/:tripId/places`
-- `PUT /api/trips/:tripId/places/:id`
-- `DELETE /api/trips/:tripId/places/:id`
-
-### Assignments
-- `POST /api/trips/:tripId/days/:dayId/assignments`
-- `DELETE /api/trips/:tripId/days/:dayId/assignments/:id`
-- `PUT /api/trips/:tripId/days/:dayId/assignments/reorder`
-- `PUT /api/trips/:tripId/assignments/:id/move`
-
-### Packing
-- `GET /api/trips/:tripId/packing`
-- `POST /api/trips/:tripId/packing`
-- `PUT /api/trips/:tripId/packing/:id`
-- `DELETE /api/trips/:tripId/packing/:id`
-
-### Tags & Categories
-- `GET/POST/PUT/DELETE /api/tags`
-- `GET/POST/PUT/DELETE /api/categories`
-
-### Maps (requires API key)
-- `POST /api/maps/search`
-- `GET /api/maps/details/:placeId`
-
-### Admin
-- `GET /api/admin/users`
-- `PUT /api/admin/users/:id`
-- `DELETE /api/admin/users/:id`
-- `GET /api/admin/stats`
+[MIT](LICENSE)
