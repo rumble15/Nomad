@@ -258,6 +258,13 @@ export default function TripPlannerPage() {
     return map
   }, [selectedDayId, assignments])
 
+  // Places assigned to selected day (with coords) — used for map fitting
+  const dayPlaces = useMemo(() => {
+    if (!selectedDayId) return []
+    const da = assignments[String(selectedDayId)] || []
+    return da.map(a => a.place).filter(p => p?.lat && p?.lng)
+  }, [selectedDayId, assignments])
+
   const mapTileUrl = settings.map_tile_url || 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
   const defaultCenter = [settings.default_lat || 48.8566, settings.default_lng || 2.3522]
   const defaultZoom = settings.default_zoom || 10
@@ -323,6 +330,7 @@ export default function TripPlannerPage() {
           <div style={{ position: 'absolute', inset: 0 }}>
             <MapView
               places={mapPlaces()}
+              dayPlaces={dayPlaces}
               route={route}
               selectedPlaceId={selectedPlaceId}
               onMarkerClick={handleMarkerClick}
@@ -332,6 +340,9 @@ export default function TripPlannerPage() {
               tileUrl={mapTileUrl}
               fitKey={fitKey}
               dayOrderMap={dayOrderMap}
+              leftWidth={leftCollapsed ? 0 : leftWidth}
+              rightWidth={rightCollapsed ? 0 : rightWidth}
+              hasInspector={!!selectedPlace}
             />
 
             {routeInfo && (

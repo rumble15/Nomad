@@ -245,13 +245,14 @@ function ReservationCard({ r, tripId, onEdit, onDelete, files = [], onNavigateTo
   )
 }
 
-function PlaceReservationCard({ item, tripId }) {
+function PlaceReservationCard({ item, tripId, files = [], onNavigateToFiles }) {
   const { updatePlace } = useTripStore()
   const toast = useToast()
   const { t, locale } = useTranslation()
   const timeFormat = useSettingsStore(s => s.settings.time_format) || '24h'
   const [editing, setEditing] = useState(false)
   const confirmed = item.status === 'confirmed'
+  const placeFiles = files.filter(f => f.place_id === item.placeId)
 
   const handleDelete = async () => {
     if (!confirm(t('reservations.confirm.remove', { name: item.title }))) return
@@ -322,6 +323,26 @@ function PlaceReservationCard({ item, tripId }) {
             </div>
 
             {item.notes && <p style={{ margin: '7px 0 0', fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5, borderTop: '1px solid var(--border-secondary)', paddingTop: 7 }}>{item.notes}</p>}
+
+            {/* Files attached to the place */}
+            {placeFiles.length > 0 && (
+              <div style={{ marginTop: 8, borderTop: '1px solid var(--border-secondary)', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {placeFiles.map(f => (
+                  <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <FileText size={11} style={{ color: 'var(--text-faint)', flexShrink: 0 }} />
+                    <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.original_name}</span>
+                    <a href={f.url} target="_blank" rel="noreferrer" style={{ display: 'flex', color: 'var(--text-faint)', flexShrink: 0 }} title={t('common.open')}>
+                      <ExternalLink size={11} />
+                    </a>
+                  </div>
+                ))}
+                {onNavigateToFiles && (
+                  <button onClick={onNavigateToFiles} style={{ alignSelf: 'flex-start', fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', fontFamily: 'inherit' }}>
+                    {t('reservations.showFiles')}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -388,7 +409,7 @@ export default function ReservationsPanel({ tripId, reservations, days, assignme
   const total = allPending.length + allConfirmed.length
 
   function renderCard(r) {
-    if (r._placeRes) return <PlaceReservationCard key={r.id} item={r} tripId={tripId} />
+    if (r._placeRes) return <PlaceReservationCard key={r.id} item={r} tripId={tripId} files={files} onNavigateToFiles={onNavigateToFiles} />
     return <ReservationCard key={r.id} r={r} tripId={tripId} onEdit={onEdit} onDelete={onDelete} files={files} onNavigateToFiles={onNavigateToFiles} />
   }
 

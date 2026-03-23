@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, Tooltip, Polyline, useMap } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import L from 'leaflet'
@@ -89,19 +89,26 @@ function createPlaceIcon(place, orderNumber, isSelected) {
   })
 }
 
-function SelectionController({ places, selectedPlaceId }) {
+function SelectionController({ places, selectedPlaceId, dayPlaces, paddingOpts }) {
   const map = useMap()
   const prev = useRef(null)
 
   useEffect(() => {
     if (selectedPlaceId && selectedPlaceId !== prev.current) {
-      const place = places.find(p => p.id === selectedPlaceId)
-      if (place?.lat && place?.lng) {
-        map.panTo([place.lat, place.lng], { animate: true, duration: 0.5 })
+      // Fit all day places into view (so you see context), but ensure selected is visible
+      const toFit = dayPlaces.length > 0 ? dayPlaces : places.filter(p => p.id === selectedPlaceId)
+      const withCoords = toFit.filter(p => p.lat && p.lng)
+      if (withCoords.length > 0) {
+        try {
+          const bounds = L.latLngBounds(withCoords.map(p => [p.lat, p.lng]))
+          if (bounds.isValid()) {
+            map.fitBounds(bounds, { ...paddingOpts, maxZoom: 16, animate: true })
+          }
+        } catch {}
       }
     }
     prev.current = selectedPlaceId
-  }, [selectedPlaceId, places, map])
+  }, [selectedPlaceId, places, dayPlaces, paddingOpts, map])
 
   return null
 }
@@ -121,7 +128,7 @@ function MapController({ center, zoom }) {
 }
 
 // Fit bounds when places change (fitKey triggers re-fit)
-function BoundsController({ places, fitKey }) {
+function BoundsController({ places, fitKey, paddingOpts }) {
   const map = useMap()
   const prevFitKey = useRef(-1)
 
@@ -131,9 +138,9 @@ function BoundsController({ places, fitKey }) {
     if (places.length === 0) return
     try {
       const bounds = L.latLngBounds(places.map(p => [p.lat, p.lng]))
-      if (bounds.isValid()) map.fitBounds(bounds, { padding: [60, 60], maxZoom: 15, animate: true })
+      if (bounds.isValid()) map.fitBounds(bounds, { ...paddingOpts, maxZoom: 16, animate: true })
     } catch {}
-  }, [fitKey, places, map])
+  }, [fitKey, places, paddingOpts, map])
 
   return null
 }
@@ -153,6 +160,7 @@ const mapPhotoCache = new Map()
 
 export function MapView({
   places = [],
+  dayPlaces = [],
   route = null,
   selectedPlaceId = null,
   onMarkerClick,
@@ -162,7 +170,20 @@ export function MapView({
   tileUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
   fitKey = 0,
   dayOrderMap = {},
+  leftWidth = 0,
+  rightWidth = 0,
+  hasInspector = false,
 }) {
+  // Dynamic padding: account for sidebars + bottom inspector
+  const paddingOpts = useMemo(() => {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+    if (isMobile) return { padding: [40, 20] }
+    const top = 60
+    const bottom = hasInspector ? 320 : 60
+    const left = leftWidth + 40
+    const right = rightWidth + 40
+    return { paddingTopLeft: [left, top], paddingBottomRight: [right, bottom] }
+  }, [leftWidth, rightWidth, hasInspector])
   const [photoUrls, setPhotoUrls] = useState({})
 
   // Fetch Google photos for places that have google_place_id but no image_url
@@ -200,8 +221,8 @@ export function MapView({
       />
 
       <MapController center={center} zoom={zoom} />
-      <BoundsController places={places} fitKey={fitKey} />
-      <SelectionController places={places} selectedPlaceId={selectedPlaceId} />
+      <BoundsController places={dayPlaces.length > 0 ? dayPlaces : places} fitKey={fitKey} paddingOpts={paddingOpts} />
+      <SelectionController places={places} selectedPlaceId={selectedPlaceId} dayPlaces={dayPlaces} paddingOpts={paddingOpts} />
       <MapClickHandler onClick={onMapClick} />
 
       <MarkerClusterGroup
