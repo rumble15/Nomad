@@ -281,6 +281,8 @@ export interface AppConfig {
   has_maps_key?: boolean
   allowed_file_types?: string
   timezone?: string
+  /** When true, users without MFA cannot use the app until they enable it */
+  require_mfa?: boolean
 }
 
 // Translation function type

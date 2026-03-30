@@ -24,6 +24,8 @@ interface AuthState {
   demoMode: boolean
   hasMapsKey: boolean
   serverTimezone: string
+  /** Server policy: all users must enable MFA */
+  appRequireMfa: boolean
 
   login: (email: string, password: string) => Promise<LoginResult>
   completeMfaLogin: (mfaToken: string, code: string) => Promise<AuthResponse>
@@ -38,6 +40,7 @@ interface AuthState {
   setDemoMode: (val: boolean) => void
   setHasMapsKey: (val: boolean) => void
   setServerTimezone: (tz: string) => void
+  setAppRequireMfa: (val: boolean) => void
   demoLogin: () => Promise<AuthResponse>
 }
 
@@ -50,6 +53,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   demoMode: localStorage.getItem('demo_mode') === 'true',
   hasMapsKey: false,
   serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  appRequireMfa: false,
 
   login: async (email: string, password: string) => {
     set({ isLoading: true, error: null })
@@ -205,6 +209,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setHasMapsKey: (val: boolean) => set({ hasMapsKey: val }),
   setServerTimezone: (tz: string) => set({ serverTimezone: tz }),
+  setAppRequireMfa: (val: boolean) => set({ appRequireMfa: val }),
 
   demoLogin: async () => {
     set({ isLoading: true, error: null })

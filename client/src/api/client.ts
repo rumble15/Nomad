@@ -34,6 +34,13 @@ apiClient.interceptors.response.use(
         window.location.href = '/login'
       }
     }
+    if (
+      error.response?.status === 403 &&
+      (error.response?.data as { code?: string } | undefined)?.code === 'MFA_REQUIRED' &&
+      !window.location.pathname.startsWith('/settings')
+    ) {
+      window.location.href = '/settings?mfa=required'
+    }
     return Promise.reject(error)
   }
 )

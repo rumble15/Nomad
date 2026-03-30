@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { SUPPORTED_LANGUAGES, useTranslation } from '../i18n'
 import Navbar from '../components/Layout/Navbar'
 import CustomSelect from '../components/shared/CustomSelect'
 import { useToast } from '../components/shared/Toast'
-import { Save, Map, Palette, User, Moon, Sun, Monitor, Shield, Camera, Trash2, Lock, KeyRound } from 'lucide-react'
+import { Save, Map, Palette, User, Moon, Sun, Monitor, Shield, Camera, Trash2, Lock, KeyRound, AlertTriangle } from 'lucide-react'
 import { authApi, adminApi, notificationsApi } from '../api/client'
 import apiClient from '../api/client'
 import type { LucideIcon } from 'lucide-react'
@@ -101,7 +101,8 @@ function NotificationPreferences({ t, memoriesEnabled }: { t: any; memoriesEnabl
 }
 
 export default function SettingsPage(): React.ReactElement {
-  const { user, updateProfile, uploadAvatar, deleteAvatar, logout, loadUser, demoMode } = useAuthStore()
+  const { user, updateProfile, uploadAvatar, deleteAvatar, logout, loadUser, demoMode, appRequireMfa } = useAuthStore()
+  const [searchParams] = useSearchParams()
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean | 'blocked'>(false)
   const avatarInputRef = React.useRef<HTMLInputElement>(null)
   const { settings, updateSetting, updateSettings } = useSettingsStore()
@@ -193,6 +194,10 @@ export default function SettingsPage(): React.ReactElement {
   const [mfaDisablePwd, setMfaDisablePwd] = useState('')
   const [mfaDisableCode, setMfaDisableCode] = useState('')
   const [mfaLoading, setMfaLoading] = useState(false)
+  const mfaRequiredByPolicy =
+    !demoMode &&
+    !user?.mfa_enabled &&
+    (searchParams.get('mfa') === 'required' || appRequireMfa)
 
   useEffect(() => {
     setMapTileUrl(settings.map_tile_url || '')
@@ -652,6 +657,19 @@ export default function SettingsPage(): React.ReactElement {
                 <h3 className="font-semibold text-base m-0" style={{ color: 'var(--text-primary)' }}>{t('settings.mfa.title')}</h3>
               </div>
               <div className="space-y-3">
+                {mfaRequiredByPolicy && (
+                  <div
+                    className="flex gap-3 p-3 rounded-lg border text-sm"
+                    style={{
+                      background: 'var(--bg-secondary)',
+                      borderColor: 'var(--border-primary)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    <AlertTriangle className="w-5 h-5 flex-shrink-0 text-amber-600" />
+                    <p className="m-0 leading-relaxed">{t('settings.mfa.requiredByPolicy')}</p>
+                  </div>
+                )}
                 <p className="text-sm m-0" style={{ color: 'var(--text-muted)', lineHeight: 1.5 }}>{t('settings.mfa.description')}</p>
                 {demoMode ? (
                   <p className="text-sm text-amber-700 m-0">{t('settings.mfa.demoBlocked')}</p>

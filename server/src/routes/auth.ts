@@ -143,6 +143,7 @@ router.get('/app-config', (_req: Request, res: Response) => {
   );
   const oidcOnlySetting = process.env.OIDC_ONLY || (db.prepare("SELECT value FROM app_settings WHERE key = 'oidc_only'").get() as { value: string } | undefined)?.value;
   const oidcOnlyMode = oidcConfigured && oidcOnlySetting === 'true';
+  const requireMfaRow = db.prepare("SELECT value FROM app_settings WHERE key = 'require_mfa'").get() as { value: string } | undefined;
   res.json({
     allow_registration: isDemo ? false : allowRegistration,
     has_users: userCount > 0,
@@ -151,6 +152,7 @@ router.get('/app-config', (_req: Request, res: Response) => {
     oidc_configured: oidcConfigured,
     oidc_display_name: oidcConfigured ? (oidcDisplayName || 'SSO') : undefined,
     oidc_only_mode: oidcOnlyMode,
+    require_mfa: requireMfaRow?.value === 'true',
     allowed_file_types: (db.prepare("SELECT value FROM app_settings WHERE key = 'allowed_file_types'").get() as { value: string } | undefined)?.value || 'jpg,jpeg,png,gif,webp,heic,pdf,doc,docx,xls,xlsx,txt,csv',
     demo_mode: isDemo,
     demo_email: isDemo ? 'demo@trek.app' : undefined,
@@ -516,7 +518,7 @@ router.get('/validate-keys', authenticate, async (req: Request, res: Response) =
   res.json(result);
 });
 
-const ADMIN_SETTINGS_KEYS = ['allow_registration', 'allowed_file_types', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'notification_webhook_url', 'app_url'];
+const ADMIN_SETTINGS_KEYS = ['allow_registration', 'allowed_file_types', 'require_mfa', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'notification_webhook_url', 'app_url'];
 
 router.get('/app-settings', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
@@ -536,9 +538,23 @@ router.put('/app-settings', authenticate, (req: Request, res: Response) => {
   const user = db.prepare('SELECT role FROM users WHERE id = ?').get(authReq.user.id) as { role: string } | undefined;
   if (user?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
 
+  const { allow_registration, allowed_file_types, require_mfa } = req.body as Record<string, unknown>;
+
+  if (require_mfa === true || require_mfa === 'true') {
+    const adminMfa = db.prepare('SELECT mfa_enabled FROM users WHERE id = ?').get(authReq.user.id) as { mfa_enabled: number } | undefined;
+    if (!(adminMfa?.mfa_enabled === 1)) {
+      return res.status(400).json({
+        error: 'Enable two-factor authentication on your own account before requiring it for all users.',
+      });
+    }
+  }
+
   for (const key of ADMIN_SETTINGS_KEYS) {
     if (req.body[key] !== undefined) {
-      const val = String(req.body[key]);
+      let val = String(req.body[key]);
+      if (key === 'require_mfa') {
+        val = req.body[key] === true || val === 'true' ? 'true' : 'false';
+      }
       // Don't save masked password
       if (key === 'smtp_pass' && val === '••••••••') continue;
       db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)").run(key, val);
@@ -551,6 +567,7 @@ router.put('/app-settings', authenticate, (req: Request, res: Response) => {
     details: {
       allow_registration: allow_registration !== undefined ? Boolean(allow_registration) : undefined,
       allowed_file_types_changed: allowed_file_types !== undefined,
+      require_mfa: require_mfa !== undefined ? (require_mfa === true || require_mfa === 'true') : undefined,
     },
   });
   res.json({ success: true });
@@ -716,6 +733,10 @@ router.post('/mfa/disable', authenticate, rateLimiter(5, RATE_LIMIT_WINDOW), (re
   const authReq = req as AuthRequest;
   if (process.env.DEMO_MODE === 'true' && authReq.user.email === 'demo@nomad.app') {
     return res.status(403).json({ error: 'MFA cannot be changed in demo mode.' });
+  }
+  const policy = db.prepare("SELECT value FROM app_settings WHERE key = 'require_mfa'").get() as { value: string } | undefined;
+  if (policy?.value === 'true') {
+    return res.status(403).json({ error: 'Two-factor authentication cannot be disabled while it is required for all users.' });
   }
   const { password, code } = req.body as { password?: string; code?: string };
   if (!password || !code) {

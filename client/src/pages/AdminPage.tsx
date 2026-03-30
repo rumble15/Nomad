@@ -85,6 +85,7 @@ export default function AdminPage(): React.ReactElement {
 
   // Registration toggle
   const [allowRegistration, setAllowRegistration] = useState<boolean>(true)
+  const [requireMfa, setRequireMfa] = useState<boolean>(false)
 
   // Invite links
   const [invites, setInvites] = useState<any[]>([])
@@ -119,7 +120,7 @@ export default function AdminPage(): React.ReactElement {
   const [updating, setUpdating] = useState<boolean>(false)
   const [updateResult, setUpdateResult] = useState<'success' | 'error' | null>(null)
 
-  const { user: currentUser, updateApiKeys } = useAuthStore()
+  const { user: currentUser, updateApiKeys, setAppRequireMfa } = useAuthStore()
   const navigate = useNavigate()
   const toast = useToast()
 
@@ -155,6 +156,7 @@ export default function AdminPage(): React.ReactElement {
     try {
       const config = await authApi.getAppConfig()
       setAllowRegistration(config.allow_registration)
+      if (config.require_mfa !== undefined) setRequireMfa(!!config.require_mfa)
       if (config.allowed_file_types) setAllowedFileTypes(config.allowed_file_types)
     } catch (err: unknown) {
       // ignore
@@ -197,6 +199,18 @@ export default function AdminPage(): React.ReactElement {
       await authApi.updateAppSettings({ allow_registration: value })
     } catch (err: unknown) {
       setAllowRegistration(!value)
+      toast.error(getApiErrorMessage(err, t('common.error')))
+    }
+  }
+
+  const handleToggleRequireMfa = async (value: boolean) => {
+    setRequireMfa(value)
+    try {
+      await authApi.updateAppSettings({ require_mfa: value })
+      setAppRequireMfa(value)
+      toast.success(t('common.saved'))
+    } catch (err: unknown) {
+      setRequireMfa(!value)
       toast.error(getApiErrorMessage(err, t('common.error')))
     }
   }
@@ -699,6 +713,34 @@ export default function AdminPage(): React.ReactElement {
                       <span
                         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                           allowRegistration ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Require 2FA for all users */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100">
+                  <h2 className="font-semibold text-slate-900">{t('admin.requireMfa')}</h2>
+                </div>
+                <div className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{t('admin.requireMfa')}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{t('admin.requireMfaHint')}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleRequireMfa(!requireMfa)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        requireMfa ? 'bg-slate-900' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          requireMfa ? 'translate-x-6' : 'translate-x-1'
                         }`}
                       />
                     </button>
