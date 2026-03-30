@@ -329,6 +329,10 @@ function runMigrations(db: Database.Database): void {
       // Add paid_by_user_id to budget_items for expense tracking / settlement
       try { db.exec('ALTER TABLE budget_items ADD COLUMN paid_by_user_id INTEGER REFERENCES users(id)'); } catch {}
     },
+    () => {
+      // Add target_date to bucket_list for optional visit planning
+      try { db.exec('ALTER TABLE bucket_list ADD COLUMN target_date TEXT DEFAULT NULL'); } catch {}
+    },
   ];
 
   if (currentVersion < migrations.length) {
