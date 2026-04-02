@@ -22,7 +22,7 @@ import BudgetPanel from '../components/Budget/BudgetPanel'
 import CollabPanel from '../components/Collab/CollabPanel'
 import Navbar from '../components/Layout/Navbar'
 import { useToast } from '../components/shared/Toast'
-import { Map, X, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { Map, X, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Ticket, PackageCheck, Wallet, FolderOpen, Camera, Users } from 'lucide-react'
 import { useTranslation } from '../i18n'
 import { addonsApi, accommodationsApi, authApi, tripsApi, assignmentsApi, mapsApi } from '../api/client'
 import ConfirmDialog from '../components/shared/ConfirmDialog'
@@ -86,13 +86,13 @@ export default function TripPlannerPage(): React.ReactElement | null {
   }, [])
 
   const TRIP_TABS = [
-    { id: 'plan', label: t('trip.tabs.plan') },
-    { id: 'buchungen', label: t('trip.tabs.reservations'), shortLabel: t('trip.tabs.reservationsShort') },
-    ...(enabledAddons.packing ? [{ id: 'packliste', label: t('trip.tabs.packing'), shortLabel: t('trip.tabs.packingShort') }] : []),
-    ...(enabledAddons.budget ? [{ id: 'finanzplan', label: t('trip.tabs.budget') }] : []),
-    ...(enabledAddons.documents ? [{ id: 'dateien', label: t('trip.tabs.files') }] : []),
-    ...(enabledAddons.memories ? [{ id: 'memories', label: t('memories.title') }] : []),
-    ...(enabledAddons.collab ? [{ id: 'collab', label: t('admin.addons.catalog.collab.name') }] : []),
+    { id: 'plan', label: t('trip.tabs.plan'), icon: Map },
+    { id: 'buchungen', label: t('trip.tabs.reservations'), shortLabel: t('trip.tabs.reservationsShort'), icon: Ticket },
+    ...(enabledAddons.packing ? [{ id: 'packliste', label: t('trip.tabs.packing'), shortLabel: t('trip.tabs.packingShort'), icon: PackageCheck }] : []),
+    ...(enabledAddons.budget ? [{ id: 'finanzplan', label: t('trip.tabs.budget'), icon: Wallet }] : []),
+    ...(enabledAddons.documents ? [{ id: 'dateien', label: t('trip.tabs.files'), icon: FolderOpen }] : []),
+    ...(enabledAddons.memories ? [{ id: 'memories', label: t('memories.title'), icon: Camera }] : []),
+    ...(enabledAddons.collab ? [{ id: 'collab', label: t('admin.addons.catalog.collab.name'), icon: Users }] : []),
   ]
 
   const [activeTab, setActiveTab] = useState<string>(() => {
@@ -516,10 +516,12 @@ export default function TripPlannerPage(): React.ReactElement | null {
       }}>
         {TRIP_TABS.map(tab => {
           const isActive = activeTab === tab.id
+          const TabIcon = tab.icon
           return (
             <button
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
+              title={tab.label}
               style={{
                 flexShrink: 0,
                 padding: '5px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
@@ -527,13 +529,14 @@ export default function TripPlannerPage(): React.ReactElement | null {
                 background: isActive ? 'var(--accent)' : 'transparent',
                 color: isActive ? 'var(--accent-text)' : 'var(--text-muted)',
                 fontFamily: 'inherit', transition: 'all 0.15s',
+                display: 'flex', alignItems: 'center', gap: 5,
               }}
               onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = isActive ? 'var(--accent-text)' : 'var(--text-primary)' }}
               onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = isActive ? 'var(--accent-text)' : 'var(--text-muted)' }}
-            >{tab.shortLabel
-                ? <><span className="sm:hidden">{tab.shortLabel}</span><span className="hidden sm:inline">{tab.label}</span></>
-                : tab.label
-              }</button>
+            >
+              {TabIcon && <><TabIcon size={20} className="sm:hidden" /><TabIcon size={15} className="hidden sm:block" /></>}
+              <span className="hidden sm:inline">{tab.shortLabel || tab.label}</span>
+            </button>
           )
         })}
       </div>
