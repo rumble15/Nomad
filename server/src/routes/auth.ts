@@ -317,11 +317,7 @@ router.post('/ws-token', authenticate, (req: Request, res: Response) => {
 // Short-lived single-use token for direct resource URLs
 router.post('/resource-token', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
-  const { purpose } = req.body as { purpose?: string };
-  if (purpose !== 'download' && purpose !== 'immich' && purpose !== 'synologyphotos') {
-    return res.status(400).json({ error: 'Invalid purpose' });
-  }
-  const token = createResourceToken(authReq.user.id, purpose);
+  const token = createResourceToken(authReq.user.id, req.body.purpose);
   if (!token) return res.status(503).json({ error: 'Service unavailable' });
   res.json(token);
 });
