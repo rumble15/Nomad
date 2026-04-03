@@ -1554,8 +1554,9 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
               value={ui.text}
               onChange={e => setNoteUi(prev => ({ ...prev, [dayId]: { ...prev[dayId], text: e.target.value } }))}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveNote(Number(dayId)) } if (e.key === 'Escape') cancelNote(Number(dayId)) }}
-              placeholder={t('dayplan.noteTitle')}
-              style={{ fontSize: 13, fontWeight: 500, border: '1px solid var(--border-primary)', borderRadius: 8, padding: '8px 10px', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box', color: 'var(--text-primary)' }}
+              placeholder={t('dayplan.noteTitle') + ' *'}
+              required
+              style={{ fontSize: 13, fontWeight: 500, border: `1px solid ${!ui.text?.trim() ? 'var(--border-primary)' : 'var(--border-primary)'}`, borderRadius: 8, padding: '8px 10px', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box', color: 'var(--text-primary)' }}
             />
             <textarea
               value={ui.time}
@@ -1569,7 +1570,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
             <div style={{ textAlign: 'right', fontSize: 11, color: (ui.time?.length || 0) >= 140 ? '#d97706' : 'var(--text-faint)', marginTop: -2 }}>{ui.time?.length || 0}/150</div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => cancelNote(Number(dayId))} style={{ fontSize: 12, background: 'none', border: '1px solid var(--border-primary)', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', color: 'var(--text-muted)', fontFamily: 'inherit' }}>{t('common.cancel')}</button>
-              <button onClick={() => saveNote(Number(dayId))} style={{ fontSize: 12, background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', borderRadius: 8, padding: '6px 16px', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}>
+              <button onClick={() => saveNote(Number(dayId))} disabled={!ui.text?.trim()} style={{ fontSize: 12, background: !ui.text?.trim() ? 'var(--border-primary)' : 'var(--accent)', color: !ui.text?.trim() ? 'var(--text-faint)' : 'var(--accent-text)', border: 'none', borderRadius: 8, padding: '6px 16px', cursor: !ui.text?.trim() ? 'not-allowed' : 'pointer', fontWeight: 600, fontFamily: 'inherit', transition: 'background 0.15s, color 0.15s' }}>
                 {ui.mode === 'add' ? t('common.add') : t('common.save')}
               </button>
             </div>
