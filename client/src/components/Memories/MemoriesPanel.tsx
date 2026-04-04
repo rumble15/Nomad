@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Camera, Plus, Share2, EyeOff, Eye, X, Check, Search, ArrowUpDown, MapPin, Filter, Link2, RefreshCw, Unlink, FolderOpen, Info } from 'lucide-react'
 import apiClient, { addonsApi } from '../../api/client'
+import { Camera, Plus, Share2, EyeOff, Eye, X, Check, Search, ArrowUpDown, MapPin, Filter, Link2, RefreshCw, Unlink, FolderOpen, Info, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useTranslation } from '../../i18n'
 import { getAuthUrl, fetchImageAsBlob, clearImageQueue } from '../../api/authUrl'
@@ -912,6 +912,20 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
           setShowMobileInfo(false)
         }
 
+        const currentIdx = allVisible.findIndex(p => p.immich_asset_id === lightboxId)
+        const hasPrev = currentIdx > 0
+        const hasNext = currentIdx < allVisible.length - 1
+        const navigateTo = (idx: number) => {
+          const photo = allVisible[idx]
+          if (!photo) return
+          if (lightboxOriginalSrc) URL.revokeObjectURL(lightboxOriginalSrc)
+          setLightboxOriginalSrc('')
+          setLightboxId(photo.immich_asset_id)
+          setLightboxUserId(photo.user_id)
+          setLightboxInfo(null)
+          fetchImageAsBlob(`/api/integrations/immich/assets/${photo.immich_asset_id}/original?userId=${photo.user_id}`).then(setLightboxOriginalSrc)
+        }
+
         const exifContent = lightboxInfo ? (
           <>
             {lightboxInfo.takenAt && (
@@ -981,8 +995,12 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
 
         return (
           <div onClick={closeLightbox}
+            onKeyDown={e => { if (e.key === 'ArrowLeft' && hasPrev) navigateTo(currentIdx - 1); if (e.key === 'ArrowRight' && hasNext) navigateTo(currentIdx + 1); if (e.key === 'Escape') closeLightbox() }}
+            tabIndex={0} ref={el => el?.focus()}
+            onTouchStart={e => (e.currentTarget as any)._touchX = e.touches[0].clientX}
+            onTouchEnd={e => { const start = (e.currentTarget as any)._touchX; if (start == null) return; const diff = e.changedTouches[0].clientX - start; if (diff > 60 && hasPrev) navigateTo(currentIdx - 1); else if (diff < -60 && hasNext) navigateTo(currentIdx + 1) }}
             style={{
-              position: 'absolute', inset: 0, zIndex: 100,
+              position: 'absolute', inset: 0, zIndex: 100, outline: 'none',
               background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
             {/* Close button */}
@@ -994,6 +1012,27 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
               }}>
               <X size={20} color="white" />
             </button>
+
+            {/* Counter */}
+            {allVisible.length > 1 && (
+              <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 10, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
+                {currentIdx + 1} / {allVisible.length}
+              </div>
+            )}
+
+            {/* Prev/Next buttons */}
+            {hasPrev && (
+              <button onClick={e => { e.stopPropagation(); navigateTo(currentIdx - 1) }}
+                style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.8)' }}>
+                <ChevronLeft size={22} />
+              </button>
+            )}
+            {hasNext && (
+              <button onClick={e => { e.stopPropagation(); navigateTo(currentIdx + 1) }}
+                style={{ position: 'absolute', right: isMobile ? 12 : 280, top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.8)' }}>
+                <ChevronRight size={22} />
+              </button>
+            )}
 
             {/* Mobile info toggle button */}
             {isMobile && (lightboxInfo || lightboxInfoLoading) && (
@@ -1008,10 +1047,11 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
               </button>
             )}
 
-            <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', justifyContent: 'center', padding: 20, width: '100%', height: '100%' }}>
+            <div onClick={e => { if (e.target === e.currentTarget) closeLightbox() }} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', justifyContent: 'center', padding: 20, width: '100%', height: '100%' }}>
               <img
                 src={lightboxOriginalSrc}
                 alt=""
+                onClick={e => e.stopPropagation()}
                 style={{ maxWidth: (!isMobile && lightboxInfo) ? 'calc(100% - 280px)' : '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 10, cursor: 'default' }}
               />
 

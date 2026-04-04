@@ -161,12 +161,13 @@ function MapController({ center, zoom }: MapControllerProps) {
 
 // Fit bounds when places change (fitKey triggers re-fit)
 interface BoundsControllerProps {
+  hasDayDetail?: boolean
   places: Place[]
   fitKey: number
   paddingOpts: Record<string, number>
 }
 
-function BoundsController({ places, fitKey, paddingOpts }: BoundsControllerProps) {
+function BoundsController({ places, fitKey, paddingOpts, hasDayDetail }: BoundsControllerProps) {
   const map = useMap()
   const prevFitKey = useRef(-1)
 
@@ -176,9 +177,14 @@ function BoundsController({ places, fitKey, paddingOpts }: BoundsControllerProps
     if (places.length === 0) return
     try {
       const bounds = L.latLngBounds(places.map(p => [p.lat, p.lng]))
-      if (bounds.isValid()) map.fitBounds(bounds, { ...paddingOpts, maxZoom: 16, animate: true })
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { ...paddingOpts, maxZoom: 16, animate: true })
+        if (hasDayDetail) {
+          setTimeout(() => map.panBy([0, 150], { animate: true }), 300)
+        }
+      }
     } catch {}
-  }, [fitKey, places, paddingOpts, map])
+  }, [fitKey, places, paddingOpts, map, hasDayDetail])
 
   return null
 }
@@ -377,17 +383,18 @@ export const MapView = memo(function MapView({
   leftWidth = 0,
   rightWidth = 0,
   hasInspector = false,
+  hasDayDetail = false,
 }) {
-  // Dynamic padding: account for sidebars + bottom inspector
+  // Dynamic padding: account for sidebars + bottom inspector + day detail panel
   const paddingOpts = useMemo(() => {
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
     if (isMobile) return { padding: [40, 20] }
     const top = 60
-    const bottom = hasInspector ? 320 : 60
+    const bottom = hasInspector ? 320 : hasDayDetail ? 280 : 60
     const left = leftWidth + 40
     const right = rightWidth + 40
     return { paddingTopLeft: [left, top], paddingBottomRight: [right, bottom] }
-  }, [leftWidth, rightWidth, hasInspector])
+  }, [leftWidth, rightWidth, hasInspector, hasDayDetail])
 
   // photoUrls: only base64 thumbs for smooth map zoom
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>(getAllThumbs)
@@ -509,7 +516,7 @@ export const MapView = memo(function MapView({
       />
 
       <MapController center={center} zoom={zoom} />
-      <BoundsController places={dayPlaces.length > 0 ? dayPlaces : places} fitKey={fitKey} paddingOpts={paddingOpts} />
+      <BoundsController places={dayPlaces.length > 0 ? dayPlaces : places} fitKey={fitKey} paddingOpts={paddingOpts} hasDayDetail={hasDayDetail} />
       <SelectionController places={places} selectedPlaceId={selectedPlaceId} dayPlaces={dayPlaces} paddingOpts={paddingOpts} />
       <MapClickHandler onClick={onMapClick} />
       <MapContextMenuHandler onContextMenu={onMapContextMenu} />

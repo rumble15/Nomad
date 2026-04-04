@@ -1,6 +1,7 @@
 import fetch from 'node-fetch';
 import { db } from '../db/database';
 import { decrypt_api_key } from './apiKeyCrypto';
+import { checkSsrf } from '../utils/ssrfGuard';
 
 // ── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -474,8 +475,11 @@ export async function reverseGeocode(lat: string, lng: string, lang?: string): P
 export async function resolveGoogleMapsUrl(url: string): Promise<{ lat: number; lng: number; name: string | null; address: string | null }> {
   let resolvedUrl = url;
 
-  // Follow redirects for short URLs (goo.gl, maps.app.goo.gl)
-  if (url.includes('goo.gl') || url.includes('maps.app')) {
+  // Follow redirects for short URLs (goo.gl, maps.app.goo.gl) with SSRF protection
+  const parsed = new URL(url);
+  if (['goo.gl', 'maps.app.goo.gl'].includes(parsed.hostname)) {
+    const ssrf = await checkSsrf(url, true);
+    if (!ssrf.allowed) throw Object.assign(new Error('URL blocked by SSRF check'), { status: 403 });
     const redirectRes = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(10000) });
     resolvedUrl = redirectRes.url;
   }
