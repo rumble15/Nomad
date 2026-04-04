@@ -60,6 +60,7 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
   const currentUser = useAuthStore(s => s.user)
 
   const [connected, setConnected] = useState(false)
+  const [enabledProviders, setEnabledProviders] = useState<PhotoProvider[]>([])
   const [availableProviders, setAvailableProviders] = useState<PhotoProvider[]>([])
   const [selectedProvider, setSelectedProvider] = useState<string>('')
   const [loading, setLoading] = useState(true)
@@ -197,6 +198,8 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
       const addonsRes = await addonsApi.enabled().catch(() => ({ addons: [] as any[] }))
       const enabledAddons = addonsRes?.addons || []
       const photoProviders = enabledAddons.filter((a: any) => a.type === 'photo_provider' && a.enabled)
+
+      setEnabledProviders(photoProviders.map((a: any) => ({ id: a.id, name: a.name, icon: a.icon, config: a.config })))
 
       // Test connection status for each enabled provider
       const statusResults = await Promise.all(
@@ -389,10 +392,10 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: 40, textAlign: 'center', ...font }}>
         <Camera size={40} style={{ color: 'var(--text-faint)', marginBottom: 12 }} />
         <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
-          {t('memories.notConnected')}
+          {t('memories.notConnected', { provider_name: enabledProviders.length === 1 ? enabledProviders[0]?.name : 'Photo provider' })}
         </h3>
         <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)', maxWidth: 300 }}>
-          {t('memories.notConnectedHint')}
+          {enabledProviders.length === 1 ? t('memories.notConnectedHint', { provider_name: enabledProviders[0]?.name }) : t('memories.notConnectedMultipleHint', { provider_names: enabledProviders.map(p => p.name).join(', ') })}
         </p>
       </div>
     )
@@ -439,14 +442,14 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-secondary)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-              {t('memories.selectAlbum')}
+              {availableProviders.length > 1 ? t('memories.selectAlbumMultiple') : t('memories.selectAlbum', { provider_name: availableProviders.find(p => p.id === selectedProvider)?.name || 'Photo provider' })}
             </h3>
-            <ProviderTabs />
             <button onClick={() => setShowAlbumPicker(false)}
               style={{ padding: '7px 14px', borderRadius: 10, border: '1px solid var(--border-primary)', background: 'none', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted)' }}>
               {t('common.cancel')}
             </button>
           </div>
+          <ProviderTabs />
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
           {albumsLoading ? (
@@ -511,9 +514,8 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-secondary)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-              {t('memories.selectPhotos')}
+              {availableProviders.length > 1 ? t('memories.selectPhotosMultiple') : t('memories.selectPhotos', { provider_name: availableProviders.find(p => p.id === selectedProvider)?.name || 'Photo provider' })}
             </h3>
-            <ProviderTabs />
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => { clearImageQueue(); setShowPicker(false) }}
                 style={{ padding: '7px 14px', borderRadius: 10, border: '1px solid var(--border-primary)', background: 'none', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted)' }}>
@@ -529,6 +531,9 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
                 {selectedIds.size > 0 ? t('memories.addSelected', { count: selectedIds.size }) : t('memories.addPhotos')}
               </button>
             </div>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <ProviderTabs />
           </div>
           {/* Filter tabs */}
           <div style={{ display: 'flex', gap: 6 }}>
@@ -573,6 +578,13 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
             <div style={{ textAlign: 'center', padding: '60px 20px' }}>
               <Camera size={36} style={{ color: 'var(--text-faint)', margin: '0 auto 10px', display: 'block' }} />
               <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>{t('memories.noPhotos')}</p>
+              {
+                pickerDateFilter && (
+                  <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: '0 0 16px' }}>
+                    {t('memories.noPhotosHint', { provider_name: availableProviders.find(p => p.id === selectedProvider)?.name || 'Photo provider' })}
+                  </p>
+                )
+              } 
             </div>
           ) : (() => {
             // Group photos by month
@@ -761,11 +773,8 @@ export default function MemoriesPanel({ tripId, startDate, endDate }: MemoriesPa
         {allVisible.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <Camera size={40} style={{ color: 'var(--text-faint)', margin: '0 auto 12px', display: 'block' }} />
-            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', margin: '0 0 4px' }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
               {t('memories.noPhotos')}
-            </p>
-            <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: '0 0 16px' }}>
-              {t('memories.noPhotosHint')}
             </p>
             <button onClick={openPicker}
               style={{

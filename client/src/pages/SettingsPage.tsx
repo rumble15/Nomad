@@ -262,9 +262,9 @@ export default function SettingsPage(): React.ReactElement {
     try {
       await apiClient.put(cfg.settings_put, buildProviderPayload(provider))
       await refreshProviderConnection(provider)
-      toast.success(`${provider.name} settings saved`)
+      toast.success(t('memories.saved', { provider_name: provider.name }))
     } catch {
-      toast.error(`Could not save ${provider.name} settings`)
+      toast.error(t('memories.saveError', { provider_name: provider.name }))
     } finally {
       setSaving(s => ({ ...s, [provider.id]: false }))
     }
@@ -281,12 +281,12 @@ export default function SettingsPage(): React.ReactElement {
       const ok = !!res.data?.connected
       setProviderConnected(prev => ({ ...prev, [provider.id]: ok }))
       if (ok) {
-        toast.success(`${provider.name} connected`)
+        toast.success(t('memories.connectionSuccess', { provider_name: provider.name }))
       } else {
-        toast.error(`${provider.name} connection failed${res.data?.error ? `: ${String(res.data.error)}` : ''}`)
+        toast.error(`${t('memories.connectionError', { provider_name: provider.name })} ${res.data?.error ? `: ${String(res.data.error)}` : ''}`)
       }
     } catch {
-      toast.error(`${provider.name} connection failed`)
+      toast.error(t('memories.connectionError', { provider_name: provider.name }))
     } finally {
       setProviderTesting(prev => ({ ...prev, [provider.id]: false }))
     }
@@ -367,7 +367,7 @@ export default function SettingsPage(): React.ReactElement {
         <div className="space-y-3">
           {fields.map(field => (
             <div key={`${provider.id}-${field.key}`}>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">{field.label}</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">{t(`memories.${field.label}`)}</label>
               <input
                 type={field.input_type || 'text'}
                 value={values[field.key] || ''}
