@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useCanDo } from '../../store/permissionsStore'
 import { useTripStore } from '../../store/tripStore'
 import { useToast } from '../shared/Toast'
-import { Search, Paperclip, X, AlertTriangle } from 'lucide-react'
+import { Search, Paperclip, X, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { useTranslation } from '../../i18n'
 import CustomTimePicker from '../shared/CustomTimePicker'
 import type { Place, Category, Assignment } from '../../types'
@@ -265,7 +265,12 @@ export default function PlaceFormModal({
                     {typeof result.rating === 'number' && (
                       <span>★ {Number(result.rating).toFixed(1)}</span>
                     )}
-                    {result.open_now === true && <span className="text-emerald-600">Open now</span>}
+                    {result.open_now === true && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Open now</span>
+                      </span>
+                    )}
                   </div>
                 </button>
               ))}
