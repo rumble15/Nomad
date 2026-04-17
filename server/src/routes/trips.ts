@@ -23,11 +23,13 @@ import {
   addMember,
   removeMember,
   exportICS,
+  getTripSummary,
   verifyTripAccess,
   NotFoundError,
   ValidationError,
   TRIP_SELECT,
 } from '../services/tripService';
+import { generateTripPdfInsights } from '../services/tripPdfInsightsService';
 
 const router = express.Router();
 
@@ -460,6 +462,20 @@ router.get('/:id/export.ics', authenticate, (req: Request, res: Response) => {
   } catch (e: any) {
     if (e instanceof NotFoundError) return res.status(404).json({ error: e.message });
     throw e;
+  }
+});
+
+router.get('/:id/pdf-insights', authenticate, async (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const trip = verifyTripAccess(req.params.id, authReq.user.id);
+  if (!trip) return res.status(404).json({ error: 'Trip not found' });
+  try {
+    const summary = getTripSummary(Number(req.params.id));
+    const insights = await generateTripPdfInsights(summary);
+    res.json(insights);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to build PDF insights';
+    res.status(500).json({ error: message });
   }
 });
 

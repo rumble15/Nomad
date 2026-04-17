@@ -2,7 +2,7 @@
 import { createElement } from 'react'
 import { getCategoryIcon } from '../shared/categoryIcons'
 import { FileText, Info, Clock, MapPin, Navigation, Train, Plane, Bus, Car, Ship, Coffee, Ticket, Star, Heart, Camera, Flag, Lightbulb, AlertTriangle, ShoppingBag, Bookmark, Hotel, LogIn, LogOut, KeyRound, BedDouble, LucideIcon } from 'lucide-react'
-import { accommodationsApi, mapsApi } from '../../api/client'
+import { accommodationsApi, mapsApi, tripsApi } from '../../api/client'
 import type { Trip, Day, Place, Category, AssignmentsMap, DayNotesMap } from '../../types'
 
 function renderLucideIcon(icon:LucideIcon, props = {}) {
@@ -131,6 +131,15 @@ export async function downloadTripPDF({ trip, days, places, assignments, categor
 
   // Pre-fetch place photos from Google
   const photoMap = await fetchPlacePhotos(assignments)
+  let aiSummary: string | null = null
+  let aiVisualHighlights: string | null = null
+  try {
+    const insights = await tripsApi.getPdfInsights(trip.id)
+    aiSummary = insights?.summary || null
+    aiVisualHighlights = insights?.visualHighlights || null
+  } catch {
+    // AI insights are optional for PDF export
+  }
 
   const totalAssigned = new Set(
     Object.values(assignments || {}).flatMap(a => a.map(x => x.place?.id)).filter(Boolean)
@@ -465,6 +474,12 @@ export async function downloadTripPDF({ trip, days, places, assignments, categor
     ${trip?.description ? `<div class="cover-desc">${escHtml(trip.description)}</div>` : ''}
     ${range ? `<div class="cover-dates">${range}</div>` : ''}
     <div class="cover-line"></div>
+    ${(aiSummary || aiVisualHighlights) ? `
+      <div style="margin:10px 0 2px;text-align:left;background:rgba(255,255,255,0.1);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.18);border-radius:12px;padding:10px 12px;max-width:620px;">
+        ${aiSummary ? `<div style="font-size:11px;line-height:1.5;color:#f8fafc;">${escHtml(aiSummary)}</div>` : ''}
+        ${aiVisualHighlights ? `<div style="margin-top:6px;font-size:10px;line-height:1.5;color:rgba(248,250,252,0.9);">${escHtml(aiVisualHighlights)}</div>` : ''}
+      </div>
+    ` : ''}
     <div class="cover-stats">
       <div>
         <div class="cover-stat-num">${sorted.length}</div>

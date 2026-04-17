@@ -30,7 +30,14 @@ const { testDb, dbMock } = vi.hoisted(() => {
   return { testDb: db, dbMock: mock };
 });
 
+const { parseImportedReservationsFromPdfMock } = vi.hoisted(() => ({
+  parseImportedReservationsFromPdfMock: vi.fn(),
+}));
+
 vi.mock('../../src/db/database', () => dbMock);
+vi.mock('../../src/services/reservationPdfImportService', () => ({
+  parseImportedReservationsFromPdf: parseImportedReservationsFromPdfMock,
+}));
 vi.mock('../../src/config', () => ({
   JWT_SECRET: 'test-jwt-secret-for-trek-testing-only',
   ENCRYPTION_KEY: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1f2',
@@ -56,6 +63,7 @@ beforeEach(() => {
   resetTestDb(testDb);
   loginAttempts.clear();
   mfaAttempts.clear();
+  parseImportedReservationsFromPdfMock.mockReset();
 });
 
 afterAll(() => {
@@ -114,6 +122,23 @@ describe('Create reservation', () => {
       .send({ title: 'Grand Hotel', type: 'hotel', day_id: day.id, create_accommodation: true });
     expect(res.status).toBe(201);
     expect(res.body.reservation).toBeDefined();
+  });
+
+  it('RESV-001 — POST /import/pdf creates reservations extracted from PDF', async () => {
+    const { user } = createUser(testDb);
+    const trip = createTrip(testDb, user.id);
+    parseImportedReservationsFromPdfMock.mockResolvedValueOnce([
+      { title: 'Flight AB123', type: 'flight', status: 'confirmed', reservation_time: '2026-08-10T07:30', location: 'FRA', confirmation_number: 'AB123' },
+    ]);
+
+    const res = await request(app)
+      .post(`/api/trips/${trip.id}/reservations/import/pdf`)
+      .set('Cookie', authCookie(user.id))
+      .attach('file', Buffer.from('%PDF-1.4 test content'), { filename: 'booking.pdf', contentType: 'application/pdf' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.imported).toBe(1);
+    expect(res.body.reservations[0].title).toBe('Flight AB123');
   });
 });
 

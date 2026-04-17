@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import { useTripStore } from '../../store/tripStore'
 import { useCanDo } from '../../store/permissionsStore'
@@ -341,17 +341,20 @@ interface ReservationsPanelProps {
   assignments: AssignmentsMap
   files?: TripFile[]
   onAdd: () => void
+  onImportPdf?: (file: File) => Promise<void>
   onEdit: (reservation: Reservation) => void
   onDelete: (id: number) => void
   onNavigateToFiles: () => void
 }
 
-export default function ReservationsPanel({ tripId, reservations, days, assignments, files = [], onAdd, onEdit, onDelete, onNavigateToFiles }: ReservationsPanelProps) {
+export default function ReservationsPanel({ tripId, reservations, days, assignments, files = [], onAdd, onImportPdf, onEdit, onDelete, onNavigateToFiles }: ReservationsPanelProps) {
   const { t, locale } = useTranslation()
   const can = useCanDo()
   const trip = useTripStore((s) => s.trip)
   const canEdit = can('reservation_edit', trip)
   const [showHint, setShowHint] = useState(() => !localStorage.getItem('hideReservationHint'))
+  const [isImporting, setIsImporting] = useState(false)
+  const importInputRef = useRef<HTMLInputElement | null>(null)
 
   const assignmentLookup = useMemo(() => buildAssignmentLookup(days, assignments), [days, assignments])
 
@@ -370,13 +373,48 @@ export default function ReservationsPanel({ tripId, reservations, days, assignme
           </p>
         </div>
         {canEdit && (
-          <button onClick={onAdd} style={{
-            display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 99,
-            border: 'none', background: 'var(--accent)', color: 'var(--accent-text)',
-            fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-          }}>
-            <Plus size={13} /> <span className="hidden sm:inline">{t('reservations.addManual')}</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {onImportPdf && (
+              <>
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  style={{ display: 'none' }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    e.currentTarget.value = ''
+                    if (!file) return
+                    try {
+                      setIsImporting(true)
+                      await onImportPdf(file)
+                    } finally {
+                      setIsImporting(false)
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => importInputRef.current?.click()}
+                  disabled={isImporting}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 99,
+                    border: '1px solid var(--border-primary)', background: 'var(--bg-card)', color: 'var(--text-primary)',
+                    fontSize: 12, fontWeight: 600, cursor: isImporting ? 'default' : 'pointer', fontFamily: 'inherit',
+                    opacity: isImporting ? 0.7 : 1,
+                  }}
+                >
+                  <FileText size={13} /> <span>{isImporting ? '...' : `${t('common.import')} PDF`}</span>
+                </button>
+              </>
+            )}
+            <button onClick={onAdd} style={{
+              display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 99,
+              border: 'none', background: 'var(--accent)', color: 'var(--accent-text)',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+              <Plus size={13} /> <span className="hidden sm:inline">{t('reservations.addManual')}</span>
+            </button>
+          </div>
         )}
       </div>
 

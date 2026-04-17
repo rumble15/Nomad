@@ -23,9 +23,9 @@ import BudgetPanel from '../components/Budget/BudgetPanel'
 import CollabPanel from '../components/Collab/CollabPanel'
 import Navbar from '../components/Layout/Navbar'
 import { useToast } from '../components/shared/Toast'
-import { Map, X, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Ticket, PackageCheck, Wallet, FolderOpen, Camera, Users } from 'lucide-react'
+import { Map as MapIcon, X, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Ticket, PackageCheck, Wallet, FolderOpen, Camera, Users, Satellite } from 'lucide-react'
 import { useTranslation } from '../i18n'
-import { addonsApi, accommodationsApi, authApi, tripsApi, assignmentsApi, mapsApi } from '../api/client'
+import { addonsApi, accommodationsApi, authApi, tripsApi, assignmentsApi, mapsApi, reservationsApi } from '../api/client'
 import ConfirmDialog from '../components/shared/ConfirmDialog'
 import { useResizablePanels } from '../hooks/useResizablePanels'
 import { useTripWebSocket } from '../hooks/useTripWebSocket'
@@ -123,7 +123,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
   }, [])
 
   const TRIP_TABS = [
-    { id: 'plan', label: t('trip.tabs.plan'), icon: Map },
+    { id: 'plan', label: t('trip.tabs.plan'), icon: MapIcon },
     { id: 'buchungen', label: t('trip.tabs.reservations'), shortLabel: t('trip.tabs.reservationsShort'), icon: Ticket },
     ...(enabledAddons.packing ? [{ id: 'listen', label: t('trip.tabs.lists'), shortLabel: t('trip.tabs.listsShort'), icon: PackageCheck }] : []),
     ...(enabledAddons.budget ? [{ id: 'finanzplan', label: t('trip.tabs.budget'), icon: Wallet }] : []),
@@ -211,8 +211,22 @@ export default function TripPlannerPage(): React.ReactElement | null {
   const [mapCategoryFilter, setMapCategoryFilter] = useState<string>('')
 
   const [expandedDayIds, setExpandedDayIds] = useState<Set<number> | null>(null)
+  const [mapLayerMode, setMapLayerMode] = useState<'default' | 'satellite'>('default')
 
   const mapPlaces = useMemo(() => {
+    const assignmentPlaceById = new Map<number, number>()
+    for (const dayAssignments of Object.values(assignments)) {
+      for (const a of dayAssignments) {
+        if (a?.id && a?.place?.id) assignmentPlaceById.set(a.id, a.place.id)
+      }
+    }
+    const flightPlaceIds = new Set<number>()
+    for (const r of reservations) {
+      if (r.type !== 'flight') continue
+      const placeId = Number(r.place_id) || assignmentPlaceById.get(Number(r.assignment_id))
+      if (placeId) flightPlaceIds.add(placeId)
+    }
+
     // Build set of place IDs assigned to collapsed days
     const hiddenPlaceIds = new Set<number>()
     if (expandedDayIds) {
@@ -235,11 +249,12 @@ export default function TripPlannerPage(): React.ReactElement | null {
 
     return places.filter(p => {
       if (!p.lat || !p.lng) return false
-      if (mapCategoryFilter && String(p.category_id) !== String(mapCategoryFilter)) return false
-      if (hiddenPlaceIds.has(p.id)) return false
+      const forcedVisible = flightPlaceIds.has(p.id)
+      if (mapCategoryFilter && !forcedVisible && String(p.category_id) !== String(mapCategoryFilter)) return false
+      if (hiddenPlaceIds.has(p.id) && !forcedVisible) return false
       return true
     })
-  }, [places, mapCategoryFilter, assignments, expandedDayIds])
+  }, [places, reservations, mapCategoryFilter, assignments, expandedDayIds])
 
   const { route, routeSegments, routeInfo, setRoute, setRouteInfo, updateRouteForDay } = useRouteCalculation({ assignments } as any, selectedDayId)
 
@@ -461,6 +476,17 @@ export default function TripPlannerPage(): React.ReactElement | null {
     catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Unknown error') }
   }
 
+  const handleImportReservationsPdf = useCallback(async (file: File) => {
+    if (!tripId) return
+    try {
+      const result = await reservationsApi.importPdf(tripId, file)
+      await tripActions.loadReservations(tripId)
+      toast.success(`${result?.imported || 0} ${t('reservations.title')}`)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to import PDF')
+    }
+  }, [tripId, toast, t])
+
   const selectedPlace = selectedPlaceId ? places.find(p => p.id === selectedPlaceId) : null
 
   // Build placeId → order-number map from the selected day's assignments
@@ -484,7 +510,12 @@ export default function TripPlannerPage(): React.ReactElement | null {
     return da.map(a => a.place).filter(p => p?.lat && p?.lng)
   }, [selectedDayId, assignments])
 
-  const mapTileUrl = settings.map_tile_url || 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+  const mapTileUrl = mapLayerMode === 'satellite'
+    ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+    : (settings.map_tile_url || 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png')
+  const mapTileAttribution = mapLayerMode === 'satellite'
+    ? 'Tiles &copy; Esri'
+    : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   const defaultCenter = [settings.default_lat || 48.8566, settings.default_lng || 2.3522]
   const defaultZoom = settings.default_zoom || 10
 
@@ -602,6 +633,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
               center={defaultCenter}
               zoom={defaultZoom}
               tileUrl={mapTileUrl}
+              tileAttribution={mapTileAttribution}
               fitKey={fitKey}
               dayOrderMap={dayOrderMap}
               leftWidth={leftCollapsed ? 0 : leftWidth}
@@ -609,6 +641,33 @@ export default function TripPlannerPage(): React.ReactElement | null {
               hasInspector={!!selectedPlace}
               hasDayDetail={!!showDayDetail && !selectedPlace}
             />
+
+            <div style={{ position: 'absolute', right: 18, top: 18, zIndex: 40, display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setMapLayerMode('default')}
+                style={{
+                  width: 34, height: 34, borderRadius: 10, border: '1px solid var(--border-primary)',
+                  background: mapLayerMode === 'default' ? 'var(--text-primary)' : 'var(--bg-card)', color: mapLayerMode === 'default' ? 'var(--bg-primary)' : 'var(--text-primary)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                }}
+                title="Map"
+              >
+                <MapIcon size={15} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setMapLayerMode('satellite')}
+                style={{
+                  width: 34, height: 34, borderRadius: 10, border: '1px solid var(--border-primary)',
+                  background: mapLayerMode === 'satellite' ? 'var(--text-primary)' : 'var(--bg-card)', color: mapLayerMode === 'satellite' ? 'var(--bg-primary)' : 'var(--text-primary)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                }}
+                title="Satellite"
+              >
+                <Satellite size={15} />
+              </button>
+            </div>
 
 
             <div className="hidden md:block" style={{ position: 'absolute', left: 10, top: 10, bottom: 10, zIndex: 20 }}>
@@ -892,17 +951,18 @@ export default function TripPlannerPage(): React.ReactElement | null {
 
         {activeTab === 'buchungen' && (
           <div style={{ height: '100%', maxWidth: 1200, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto', overscrollBehavior: 'contain' }}>
-            <ReservationsPanel
-              tripId={tripId}
-              reservations={reservations}
-              days={days}
-              assignments={assignments}
-              files={files}
-              onAdd={() => { setEditingReservation(null); setShowReservationModal(true) }}
-              onEdit={(r) => { setEditingReservation(r); setShowReservationModal(true) }}
-              onDelete={handleDeleteReservation}
-              onNavigateToFiles={() => handleTabChange('dateien')}
-            />
+                <ReservationsPanel
+                  tripId={tripId}
+                  reservations={reservations}
+                  days={days}
+                  assignments={assignments}
+                  files={files}
+                  onAdd={() => { setEditingReservation(null); setShowReservationModal(true) }}
+                  onImportPdf={handleImportReservationsPdf}
+                  onEdit={(r) => { setEditingReservation(r); setShowReservationModal(true) }}
+                  onDelete={handleDeleteReservation}
+                  onNavigateToFiles={() => handleTabChange('dateien')}
+                />
           </div>
         )}
 
