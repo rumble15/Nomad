@@ -672,10 +672,8 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     setIsCalculating(true)
     try {
       const result = await calculateRoute(waypoints, 'walking')
-      // Luftlinien zwischen Wegpunkten anzeigen
-      const lineCoords = waypoints.map(p => [p.lat, p.lng])
       setRouteInfo({ distance: result.distanceText, duration: result.durationText })
-      onRouteCalculated?.({ ...result, coordinates: lineCoords })
+      onRouteCalculated?.(result)
     } catch { toast.error(t('dayplan.toast.routeError')) }
     finally { setIsCalculating(false) }
   }

@@ -85,6 +85,7 @@ export const tripsApi = {
   addMember: (id: number | string, identifier: string) => apiClient.post(`/trips/${id}/members`, { identifier }).then(r => r.data),
   removeMember: (id: number | string, userId: number) => apiClient.delete(`/trips/${id}/members/${userId}`).then(r => r.data),
   copy: (id: number | string, data?: { title?: string }) => apiClient.post(`/trips/${id}/copy`, data || {}).then(r => r.data),
+  getPdfInsights: (id: number | string) => apiClient.get(`/trips/${id}/pdf-insights`).then(r => r.data),
 }
 
 export const daysApi = {
@@ -249,6 +250,11 @@ export const reservationsApi = {
   update: (tripId: number | string, id: number, data: Record<string, unknown>) => apiClient.put(`/trips/${tripId}/reservations/${id}`, data).then(r => r.data),
   delete: (tripId: number | string, id: number) => apiClient.delete(`/trips/${tripId}/reservations/${id}`).then(r => r.data),
   updatePositions: (tripId: number | string, positions: { id: number; day_plan_position: number }[], dayId?: number) => apiClient.put(`/trips/${tripId}/reservations/positions`, { positions, day_id: dayId }).then(r => r.data),
+  importPdf: (tripId: number | string, file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return apiClient.post(`/trips/${tripId}/reservations/import/pdf`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+  },
 }
 
 export const weatherApi = {

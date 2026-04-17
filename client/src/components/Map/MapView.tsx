@@ -378,6 +378,7 @@ export const MapView = memo(function MapView({
   center = [48.8566, 2.3522],
   zoom = 10,
   tileUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  tileAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   fitKey = 0,
   dayOrderMap = {},
   leftWidth = 0,
@@ -507,7 +508,7 @@ export const MapView = memo(function MapView({
     >
       <TileLayer
         url={tileUrl}
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        attribution={tileAttribution}
         maxZoom={19}
         keepBuffer={8}
         updateWhenZooming={false}

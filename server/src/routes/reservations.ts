@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import multer from 'multer';
 import { db } from '../db/database';
 import { authenticate } from '../middleware/auth';
 import { broadcast } from '../websocket';
@@ -13,8 +14,13 @@ import {
   updateReservation,
   deleteReservation,
 } from '../services/reservationService';
+import { parseImportedReservationsFromPdf } from '../services/reservationPdfImportService';
 
 const router = express.Router({ mergeParams: true });
+const importPdfUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 router.get('/', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
@@ -75,6 +81,41 @@ router.post('/', authenticate, (req: Request, res: Response) => {
     const tripInfo = db.prepare('SELECT title FROM trips WHERE id = ?').get(tripId) as { title: string } | undefined;
     send({ event: 'booking_change', actorId: authReq.user.id, scope: 'trip', targetId: Number(tripId), params: { trip: tripInfo?.title || 'Untitled', actor: authReq.user.email, booking: title, type: type || 'booking', tripId: String(tripId) } }).catch(() => {});
   });
+});
+
+router.post('/import/pdf', authenticate, importPdfUpload.single('file'), async (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const { tripId } = req.params;
+  const trip = verifyTripAccess(tripId, authReq.user.id);
+  if (!trip) return res.status(404).json({ error: 'Trip not found' });
+  if (!checkPermission('reservation_edit', authReq.user.role, trip.user_id, authReq.user.id, trip.user_id !== authReq.user.id))
+    return res.status(403).json({ error: 'No permission' });
+  if (!req.file) return res.status(400).json({ error: 'PDF file is required' });
+  if (req.file.mimetype !== 'application/pdf') return res.status(400).json({ error: 'Only PDF files are supported' });
+
+  try {
+    const parsed = await parseImportedReservationsFromPdf(req.file.buffer);
+    if (parsed.length === 0) return res.status(422).json({ error: 'No bookings could be extracted from PDF' });
+    const imported = parsed.map((entry) => {
+      const { reservation } = createReservation(tripId, {
+        title: entry.title,
+        type: entry.type,
+        status: entry.status || 'pending',
+        reservation_time: entry.reservation_time || null,
+        reservation_end_time: entry.reservation_end_time || null,
+        location: entry.location || null,
+        confirmation_number: entry.confirmation_number || null,
+        notes: entry.notes || null,
+        metadata: entry.metadata || null,
+      });
+      return reservation;
+    });
+    res.status(201).json({ reservations: imported, imported: imported.length });
+    broadcast(tripId, 'reservation:imported', { reservations: imported }, req.headers['x-socket-id'] as string);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to import PDF bookings';
+    res.status(400).json({ error: message });
+  }
 });
 
 // Batch update day_plan_position for multiple reservations (must be before /:id)
