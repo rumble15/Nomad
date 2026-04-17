@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import ReactDOM from 'react-dom'
-import { ArrowUp, Trash2, Reply, ChevronUp, MessageCircle, Smile, X } from 'lucide-react'
+import { ArrowUp, Trash2, Reply, ChevronUp, MessageCircle, Smile, X, Sparkles } from 'lucide-react'
 import { collabApi } from '../../api/client'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useCanDo } from '../../store/permissionsStore'
@@ -25,6 +25,8 @@ interface ChatMessage {
   created_at: string
   user?: { username: string; avatar_url: string | null }
   reply_to?: ChatMessage | null
+  is_gemini?: boolean
+  system_name?: string
 }
 
 // ── Twemoji helper (Apple-style emojis via CDN) ──
@@ -370,6 +372,7 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
   const [showEmoji, setShowEmoji] = useState(false)
   const [reactMenu, setReactMenu] = useState(null) // { msgId, x, y }
   const [deletingIds, setDeletingIds] = useState(new Set())
+  const [executingGeminiId, setExecutingGeminiId] = useState<number | null>(null)
 
   const containerRef = useRef(null)
   const messagesRef = useRef(messages)
@@ -459,20 +462,58 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
   const handleSend = useCallback(async () => {
     const body = text.trim()
     if (!body || sending) return
+
+    const geminiCmdMatch = body.match(/^@gemini\b\s*(.*)$/i)
+    const geminiInstruction = geminiCmdMatch ? (geminiCmdMatch[1] || '').trim() : null
+
+    const sourceReply = replyTo
     setSending(true)
     try {
       const payload = { text: body }
-      if (replyTo) payload.reply_to = replyTo.id
+      if (sourceReply) payload.reply_to = sourceReply.id
       const data = await collabApi.sendMessage(tripId, payload)
       if (data?.message) {
         setMessages(prev => prev.some(m => m.id === data.message.id) ? prev : [...prev, data.message])
       }
+
+      if (geminiCmdMatch) {
+        const sourceMessageId = sourceReply?.id || data?.message?.id
+        if (sourceMessageId) {
+          setExecutingGeminiId(sourceMessageId)
+          try {
+            const geminiData = await collabApi.executeGeminiIdea(tripId, sourceMessageId, geminiInstruction || undefined)
+            if (geminiData?.message) {
+              setMessages(prev => prev.some(m => m.id === geminiData.message.id) ? prev : [...prev, geminiData.message])
+            }
+          } catch {
+            // Best effort: command message is still posted even if Gemini execution fails.
+          } finally {
+            setExecutingGeminiId(null)
+          }
+        }
+      }
+
       setText(''); setReplyTo(null); setShowEmoji(false)
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
       isAtBottom.current = true
       setTimeout(() => scrollToBottom('smooth'), 50)
     } catch {} finally { setSending(false) }
   }, [text, sending, replyTo, tripId, scrollToBottom])
+
+  const handleGeminiExecute = useCallback(async (msg) => {
+    if (!msg || msg.is_gemini || executingGeminiId !== null) return
+    setExecutingGeminiId(msg.id)
+    try {
+      const data = await collabApi.executeGeminiIdea(tripId, msg.id)
+      if (data?.message) {
+        setMessages(prev => prev.some(m => m.id === data.message.id) ? prev : [...prev, data.message])
+      }
+    } catch {
+      // Best effort UI action.
+    } finally {
+      setExecutingGeminiId(null)
+    }
+  }, [tripId, executingGeminiId])
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
@@ -505,7 +546,8 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
     textareaRef.current?.focus()
   }, [])
 
-  const isOwn = (msg) => String(msg.user_id) === String(currentUser.id)
+  const isOwn = (msg) => !msg.is_gemini && String(msg.user_id) === String(currentUser.id)
+  const isGeminiCommand = /^@gemini\b/i.test(text.trim())
 
   // Check if message is only emoji (1-3 emojis, no other text)
   const isEmojiOnly = (text) => {
@@ -552,6 +594,7 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
           )}
 
           {messages.map((msg, idx) => {
+            const isGemini = !!msg.is_gemini
             const own = isOwn(msg)
             const prevMsg = messages[idx - 1]
             const nextMsg = messages[idx + 1]
@@ -613,7 +656,16 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
                   {!own && (
                     <div style={{ width: 28, flexShrink: 0, alignSelf: 'flex-end' }}>
                       {showAvatar && (
-                        msg.user_avatar ? (
+                        isGemini ? (
+                          <div style={{
+                            width: 28, height: 28, borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#fff',
+                          }}>
+                            <Sparkles size={14} />
+                          </div>
+                        ) : msg.user_avatar ? (
                           <img src={msg.user_avatar} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
                         ) : (
                           <div style={{
@@ -632,7 +684,7 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
                     {/* Username for others at group start */}
                     {!own && isNewGroup && (
                       <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-faint)', marginBottom: 2, paddingLeft: 4 }}>
-                        {msg.username}
+                        {msg.system_name || msg.username}
                       </span>
                     )}
 
@@ -659,8 +711,10 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
                         </div>
                       ) : (
                         <div style={{
-                          background: own ? '#007AFF' : 'var(--bg-secondary)',
-                          color: own ? '#fff' : 'var(--text-primary)',
+                          background: isGemini
+                            ? 'linear-gradient(135deg, #1d4ed8, #2563eb)'
+                            : own ? '#007AFF' : 'var(--bg-secondary)',
+                          color: (own || isGemini) ? '#fff' : 'var(--text-primary)',
                           borderRadius: br, padding: hasReply ? '4px 4px 8px 4px' : '8px 14px',
                           fontSize: 14, lineHeight: 1.4, wordBreak: 'break-word', whiteSpace: 'pre-wrap',
                         }}>
@@ -698,6 +752,24 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
                         ...(own ? { left: -6 } : { right: -6 }),
                       }}>
                         <button onClick={() => setReplyTo(msg)} title={t('collab.chat.reply')} style={{
+                        {!isGemini && canEdit && (
+                          <button
+                            onClick={() => handleGeminiExecute(msg)}
+                            title={t('collab.chat.geminiExecute') || 'Ask Gemini to execute this idea'}
+                            disabled={executingGeminiId !== null}
+                            style={{
+                              width: 24, height: 24, borderRadius: '50%', border: 'none',
+                              background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              cursor: executingGeminiId !== null ? 'default' : 'pointer', color: 'var(--accent-text)', padding: 0,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.15)', transition: 'transform 0.12s',
+                              opacity: executingGeminiId !== null ? 0.6 : 1,
+                            }}
+                            onMouseEnter={e => { if (executingGeminiId === null) e.currentTarget.style.transform = 'scale(1.2)' }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                          >
+                            <Sparkles size={11} />
+                          </button>
+                        )}
                           width: 24, height: 24, borderRadius: '50%', border: 'none',
                           background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                           cursor: 'pointer', color: 'var(--accent-text)', padding: 0,
@@ -708,7 +780,7 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
                         >
                           <Reply size={11} />
                         </button>
-                        {own && canEdit && (
+                        {own && canEdit && !isGemini && (
                           <button onClick={() => handleDelete(msg.id)} title={t('common.delete')} style={{
                             width: 24, height: 24, borderRadius: '50%', border: 'none',
                             background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -826,6 +898,11 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
             </button>
           )}
         </div>
+        {isGeminiCommand && (
+          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-faint)' }}>
+            {t('collab.chat.geminiCommandHint') || 'Gemini execution starts after sending. Reply to a message to use it as source idea.'}
+          </div>
+        )}
       </div>
 
       {/* Emoji picker */}

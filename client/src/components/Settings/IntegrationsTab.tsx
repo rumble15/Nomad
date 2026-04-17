@@ -2,7 +2,7 @@ import Section from './Section'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from '../../i18n'
 import { useToast } from '../shared/Toast'
-import { Trash2, Copy, Terminal, Plus, Check } from 'lucide-react'
+import { Trash2, Copy, Terminal, Plus, Check, Bot } from 'lucide-react'
 import { authApi } from '../../api/client'
 import { useAddonStore } from '../../store/addonStore'
 import PhotoProvidersSection from './PhotoProvidersSection'
@@ -49,6 +49,54 @@ export default function IntegrationsTab(): React.ReactElement {
     }
   }
 }`
+
+  const geminiModel = 'gemini-3.1-pro-preview'
+  const geminiClientTemplate = `{
+  "model": "${geminiModel}",
+  "systemPrompt": "<paste always-on prompt>",
+  "mcpServers": {
+    "trek": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "${mcpEndpoint}",
+        "--header",
+        "Authorization: Bearer <your_token>"
+      ]
+    }
+  }
+}`
+  const geminiAlwaysOnPrompt = `You are my always-on travel co-worker inside TREK.
+Model: gemini-3.1-pro-preview.
+
+Mission:
+- Plan, optimize and document the trip autonomously across all tabs (plan, bookings, lists, budget, collab, notes).
+- Use function-calling first. Prefer MCP tools over assumptions.
+- Stay efficient, avoid duplicates, and keep data consistent.
+
+Tool strategy:
+1) Load context with get_trip_summary.
+2) Use maps_search (or search_place) to find real places and IDs.
+3) Use search_trip to check existing content before creating new data.
+4) Execute create_*, update_* and delete_* tools to complete the task end-to-end.
+5) Re-run get_trip_summary and report what changed.
+
+Rules:
+- Be proactive and finish tasks without unnecessary back-and-forth.
+- If data is missing, ask concise follow-up questions.
+- Prefer safe updates over destructive actions.
+- Keep outputs short and action-oriented.`
+  const geminiTaskPrompt = `Act as my travel co-worker in TREK and solve this task autonomously.
+
+Requirements:
+- Work with function-calling and MCP tools.
+- Use maps_search for place research.
+- Use search_trip to avoid duplicate entries.
+- Apply changes directly in TREK (create/update/delete as needed).
+- At the end, run get_trip_summary and give me a concise changelog.
+
+Task:
+<describe what should be planned, optimized or documented>`
 
   useEffect(() => {
     if (mcpEnabled) {
@@ -124,6 +172,78 @@ export default function IntegrationsTab(): React.ReactElement {
               {mcpJsonConfig}
             </pre>
             <p className="mt-1.5 text-xs" style={{ color: 'var(--text-tertiary)' }}>{t('settings.mcp.clientConfigHint')}</p>
+          </div>
+
+          {/* Gemini Co-Worker profile */}
+          <div className="rounded-lg border p-4 space-y-4" style={{ borderColor: 'var(--border-primary)', background: 'var(--bg-secondary)' }}>
+            <div className="flex items-center gap-2">
+              <Bot className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
+              <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('settings.mcp.gemini.title')}</h3>
+            </div>
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{t('settings.mcp.gemini.toolsHint')}</p>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{t('settings.mcp.gemini.model')}</label>
+                <button onClick={() => handleCopy(geminiModel, 'gemini-model')}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border transition-colors hover:bg-slate-100 dark:hover:bg-slate-700"
+                  style={{ borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
+                  {copiedKey === 'gemini-model' ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                  {copiedKey === 'gemini-model' ? t('settings.mcp.copied') : t('settings.mcp.copy')}
+                </button>
+              </div>
+              <code className="block px-3 py-2 rounded-lg text-sm font-mono border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}>
+                {geminiModel}
+              </code>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{t('settings.mcp.gemini.clientConfig')}</label>
+                <button onClick={() => handleCopy(geminiClientTemplate, 'gemini-config')}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border transition-colors hover:bg-slate-100 dark:hover:bg-slate-700"
+                  style={{ borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
+                  {copiedKey === 'gemini-config' ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                  {copiedKey === 'gemini-config' ? t('settings.mcp.copied') : t('settings.mcp.copy')}
+                </button>
+              </div>
+              <pre className="p-3 rounded-lg text-xs font-mono overflow-x-auto border" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}>
+                {geminiClientTemplate}
+              </pre>
+              <p className="mt-1.5 text-xs" style={{ color: 'var(--text-tertiary)' }}>{t('settings.mcp.gemini.clientConfigHint')}</p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{t('settings.mcp.gemini.alwaysOn')}</label>
+                <button onClick={() => handleCopy(geminiAlwaysOnPrompt, 'gemini-system')}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border transition-colors hover:bg-slate-100 dark:hover:bg-slate-700"
+                  style={{ borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
+                  {copiedKey === 'gemini-system' ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                  {copiedKey === 'gemini-system' ? t('settings.mcp.copied') : t('settings.mcp.copy')}
+                </button>
+              </div>
+              <pre className="p-3 rounded-lg text-xs font-mono overflow-x-auto border whitespace-pre-wrap" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}>
+                {geminiAlwaysOnPrompt}
+              </pre>
+              <p className="mt-1.5 text-xs" style={{ color: 'var(--text-tertiary)' }}>{t('settings.mcp.gemini.alwaysOnHint')}</p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{t('settings.mcp.gemini.taskKickoff')}</label>
+                <button onClick={() => handleCopy(geminiTaskPrompt, 'gemini-kickoff')}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border transition-colors hover:bg-slate-100 dark:hover:bg-slate-700"
+                  style={{ borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
+                  {copiedKey === 'gemini-kickoff' ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                  {copiedKey === 'gemini-kickoff' ? t('settings.mcp.copied') : t('settings.mcp.copy')}
+                </button>
+              </div>
+              <pre className="p-3 rounded-lg text-xs font-mono overflow-x-auto border whitespace-pre-wrap" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}>
+                {geminiTaskPrompt}
+              </pre>
+              <p className="mt-1.5 text-xs" style={{ color: 'var(--text-tertiary)' }}>{t('settings.mcp.gemini.taskKickoffHint')}</p>
+            </div>
           </div>
 
           {/* Token list */}

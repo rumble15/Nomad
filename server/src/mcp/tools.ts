@@ -38,6 +38,46 @@ function ok(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
 }
 
+interface TripSearchHit {
+  path: string;
+  value: string;
+}
+
+function collectTripSearchHits(
+  value: unknown,
+  queryLower: string,
+  path: string,
+  hits: TripSearchHit[],
+  maxResults: number
+): void {
+  if (hits.length >= maxResults || value === null || value === undefined) return;
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    const preview = String(value);
+    if (preview.toLowerCase().includes(queryLower)) {
+      hits.push({
+        path,
+        value: preview.length > 240 ? `${preview.slice(0, 237)}...` : preview,
+      });
+    }
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length && hits.length < maxResults; i += 1) {
+      collectTripSearchHits(value[i], queryLower, `${path}[${i}]`, hits, maxResults);
+    }
+    return;
+  }
+
+  if (typeof value === 'object') {
+    for (const [key, nested] of Object.entries(value)) {
+      if (hits.length >= maxResults) break;
+      collectTripSearchHits(nested, queryLower, `${path}.${key}`, hits, maxResults);
+    }
+  }
+}
+
 export function registerTools(server: McpServer, userId: number): void {
   // --- TRIPS ---
 
@@ -242,6 +282,54 @@ export function registerTools(server: McpServer, userId: number): void {
       } catch {
         return { content: [{ type: 'text' as const, text: 'Place search failed.' }], isError: true };
       }
+    }
+  );
+
+  server.registerTool(
+    'maps_search',
+    {
+      description: 'Alias for search_place. Use this map-oriented tool name when your client expects a maps/search tool.',
+      inputSchema: {
+        query: z.string().min(1).max(500).describe('Place name or address to search for'),
+      },
+    },
+    async ({ query }) => {
+      try {
+        const result = await searchPlaces(userId, query);
+        return ok(result);
+      } catch {
+        return { content: [{ type: 'text' as const, text: 'Map search failed.' }], isError: true };
+      }
+    }
+  );
+
+  server.registerTool(
+    'search_trip',
+    {
+      description: 'Search across the full trip summary (all tabs: plan, reservations, lists, budget, collab, notes). Returns matching fields and values.',
+      inputSchema: {
+        tripId: z.number().int().positive(),
+        query: z.string().min(1).max(200).describe('Search term, e.g. hotel name, restaurant, budget category, note text'),
+        max_results: z.number().int().positive().max(100).optional().describe('Maximum number of matches to return (default: 20)'),
+      },
+    },
+    async ({ tripId, query, max_results }) => {
+      if (!canAccessTrip(tripId, userId)) return noAccess();
+
+      const summary = getTripSummary(tripId);
+      if (!summary) return noAccess();
+
+      const maxResults = max_results ?? 20;
+      const hits: TripSearchHit[] = [];
+      collectTripSearchHits(summary, query.trim().toLowerCase(), 'summary', hits, maxResults);
+
+      return ok({
+        query,
+        hit_count: hits.length,
+        max_results: maxResults,
+        possibly_truncated: hits.length >= maxResults,
+        hits,
+      });
     }
   );
 

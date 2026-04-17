@@ -290,6 +290,7 @@ export const collabApi = {
   deletePoll: (tripId: number | string, id: number) => apiClient.delete(`/trips/${tripId}/collab/polls/${id}`).then(r => r.data),
   getMessages: (tripId: number | string, before?: string) => apiClient.get(`/trips/${tripId}/collab/messages${before ? `?before=${before}` : ''}`).then(r => r.data),
   sendMessage: (tripId: number | string, data: Record<string, unknown>) => apiClient.post(`/trips/${tripId}/collab/messages`, data).then(r => r.data),
+  executeGeminiIdea: (tripId: number | string, id: number, instruction?: string) => apiClient.post(`/trips/${tripId}/collab/messages/${id}/gemini-execute`, instruction ? { instruction } : {}).then(r => r.data),
   deleteMessage: (tripId: number | string, id: number) => apiClient.delete(`/trips/${tripId}/collab/messages/${id}`).then(r => r.data),
   reactMessage: (tripId: number | string, id: number, emoji: string) => apiClient.post(`/trips/${tripId}/collab/messages/${id}/react`, { emoji }).then(r => r.data),
   linkPreview: (tripId: number | string, url: string) => apiClient.get(`/trips/${tripId}/collab/link-preview?url=${encodeURIComponent(url)}`).then(r => r.data),

@@ -1,14 +1,15 @@
 # MCP Integration
 
 TREK includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that lets AI
-assistants — such as Claude Desktop, Cursor, or any MCP-compatible client — read and modify your trip data through a
-structured API.
+assistants — such as Claude Desktop, Cursor, Gemini, or any MCP-compatible client — read and modify your trip data
+through a structured API.
 
 > **Note:** MCP is an addon that must be enabled by your TREK administrator before it becomes available.
 
 ## Table of Contents
 
 - [Setup](#setup)
+- [Gemini Co-Worker Profile](#gemini-co-worker-profile)
 - [Limitations & Important Notes](#limitations--important-notes)
 - [Resources (read-only)](#resources-read-only)
 - [Tools (read-write)](#tools-read-write)
@@ -56,6 +57,25 @@ The Settings page shows a ready-to-copy client configuration snippet. For **Clau
 
 > The path to `npx` may need to be adjusted for your system (e.g. `C:\PROGRA~1\nodejs\npx.cmd` on Windows).
 
+## Gemini Co-Worker Profile
+
+If you want a persistent travel co-worker with autonomous function-calling, use a Gemini client profile with model
+`gemini-3.1-pro-preview` and connect it to TREK via MCP.
+
+Recommended operating pattern:
+
+1. Use an always-on system prompt that enforces tool-first behavior
+2. Start each task with `get_trip_summary`
+3. Use `maps_search` (or `search_place`) for place research
+4. Use `search_trip` before writes to avoid duplicates
+5. Execute create/update/delete tools end-to-end, then recap with `get_trip_summary`
+
+The Settings page now includes ready-to-copy templates for:
+
+- Gemini MCP profile template
+- Always-on co-worker system prompt
+- Task kickoff prompt for autonomous execution
+
 ---
 
 ## Limitations & Important Notes
@@ -101,7 +121,7 @@ making changes.
 
 ## Tools (read-write)
 
-TREK exposes **34 tools** organized by feature area. Use `get_trip_summary` as a starting point — it returns everything
+TREK exposes **36 tools** organized by feature area. Use `get_trip_summary` as a starting point — it returns everything
 about a trip in a single call.
 
 ### Trip Summary
@@ -126,6 +146,14 @@ about a trip in a single call.
 | `create_place` | Add a place/POI with name, coordinates, address, category, notes, website, phone. |
 | `update_place` | Update any field of an existing place.                                            |
 | `delete_place` | Remove a place from a trip.                                                       |
+
+### Search & Discovery
+
+| Tool           | Description                                                                                                                                                |
+|----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `search_place` | Search for real-world places by name/address and return IDs usable in `create_place` (e.g. `google_place_id`, `osm_id`).                               |
+| `maps_search`  | Alias for `search_place`, intended for agents/clients that expect a maps-style tool name.                                                                |
+| `search_trip`  | Full-text search across the complete trip summary (all tabs), helpful for autonomous agents to check existing data before creating/updating/deleting it. |
 
 ### Day Planning
 

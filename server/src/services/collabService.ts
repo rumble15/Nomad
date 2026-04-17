@@ -44,12 +44,25 @@ export interface LinkPreviewResult {
   url: string;
 }
 
+export const GEMINI_BOT_PREFIX = '[GEMINI_BOT]';
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
 export function avatarUrl(user: { avatar?: string | null }): string | null {
   return user.avatar ? `/uploads/avatars/${user.avatar}` : null;
+}
+
+function parseGeminiBotText(text: string): { isGemini: boolean; text: string } {
+  if (typeof text !== 'string') return { isGemini: false, text: '' };
+  if (!text.startsWith(GEMINI_BOT_PREFIX)) return { isGemini: false, text };
+  const trimmed = text.slice(GEMINI_BOT_PREFIX.length).trimStart();
+  return { isGemini: true, text: trimmed };
+}
+
+export function encodeGeminiBotText(text: string): string {
+  return `${GEMINI_BOT_PREFIX} ${text}`;
 }
 
 export function verifyTripAccess(tripId: string | number, userId: number) {
@@ -314,7 +327,33 @@ export function deletePoll(tripId: string | number, pollId: string | number): bo
 /* ------------------------------------------------------------------ */
 
 export function formatMessage(msg: CollabMessage, reactions?: GroupedReaction[]) {
-  return { ...msg, user_avatar: avatarUrl(msg), avatar_url: avatarUrl(msg), reactions: reactions || [] };
+  const parsed = parseGeminiBotText(msg.text || '');
+  const base = {
+    ...msg,
+    text: parsed.text,
+    user_avatar: parsed.isGemini ? null : avatarUrl(msg),
+    avatar_url: parsed.isGemini ? null : avatarUrl(msg),
+    reactions: reactions || [],
+  } as Record<string, unknown>;
+  if (parsed.isGemini) {
+    base.is_gemini = true;
+    base.system_name = 'Gemini';
+    base.username = 'Gemini';
+  }
+  return base;
+}
+
+export function getMessageById(tripId: string | number, messageId: string | number): CollabMessage | null {
+  const msg = db.prepare(`
+    SELECT m.*, u.username, u.avatar,
+      rm.text AS reply_text, ru.username AS reply_username
+    FROM collab_messages m
+    JOIN users u ON m.user_id = u.id
+    LEFT JOIN collab_messages rm ON m.reply_to = rm.id
+    LEFT JOIN users ru ON rm.user_id = ru.id
+    WHERE m.id = ? AND m.trip_id = ?
+  `).get(messageId, tripId) as CollabMessage | undefined;
+  return msg || null;
 }
 
 export function listMessages(tripId: string | number, before?: string | number) {
