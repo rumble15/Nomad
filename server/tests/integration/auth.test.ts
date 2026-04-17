@@ -446,6 +446,16 @@ describe('Short-lived tokens', () => {
     expect(typeof res.body.token).toBe('string');
     expect(res.body.token.length).toBeGreaterThan(0);
   });
+
+  it('AUTH-030 — POST /api/auth/resource-token with invalid purpose returns 400', async () => {
+    const { user } = createUser(testDb);
+    const res = await request(app)
+      .post('/api/auth/resource-token')
+      .set('Cookie', authCookie(user.id))
+      .send({ purpose: 'invalid-purpose' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/invalid purpose/i);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

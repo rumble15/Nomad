@@ -109,6 +109,10 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.user_delete': 'deleted user',
   'admin.invite_create': 'created invite',
   'immich.private_ip_configured': 'configured Immich with private IP',
+  'gemini.execute': 'executed Gemini workflow',
+  'gemini.approval_requested': 'requested Gemini high-risk approval',
+  'gemini.clarification_requested': 'requested Gemini clarification',
+  'gemini.failed': 'Gemini execution failed',
 };
 
 /** Best-effort; never throws — failures are logged only. */

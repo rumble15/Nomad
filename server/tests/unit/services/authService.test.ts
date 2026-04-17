@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../../src/db/database', () => ({
   db: { prepare: () => ({ get: vi.fn(), all: vi.fn(), run: vi.fn() }) },
@@ -25,7 +25,10 @@ import {
   hashBackupCode,
   generateBackupCodes,
   parseBackupCodeHashes,
+  createWsToken,
+  createResourceToken,
 } from '../../../src/services/authService';
+import { createEphemeralToken } from '../../../src/services/ephemeralTokens';
 import type { User } from '../../../src/types';
 
 // ── utcSuffix ────────────────────────────────────────────────────────────────
@@ -295,5 +298,40 @@ describe('parseBackupCodeHashes', () => {
 
   it('returns all strings from a valid JSON string array', () => {
     expect(parseBackupCodeHashes('["hash1","hash2","hash3"]')).toEqual(['hash1', 'hash2', 'hash3']);
+  });
+});
+
+// ── createWsToken / createResourceToken ────────────────────────────────────
+
+describe('ephemeral auth token creators', () => {
+  beforeEach(() => {
+    vi.mocked(createEphemeralToken).mockReset();
+  });
+
+  it('createWsToken returns token when generator succeeds', () => {
+    vi.mocked(createEphemeralToken).mockReturnValue('ws-token-123');
+    expect(createWsToken(1)).toEqual({ token: 'ws-token-123' });
+    expect(createEphemeralToken).toHaveBeenCalledWith(1, 'ws');
+  });
+
+  it('createWsToken returns 503 when generator fails', () => {
+    vi.mocked(createEphemeralToken).mockReturnValue(null);
+    expect(createWsToken(1)).toEqual({ error: 'Service unavailable', status: 503 });
+  });
+
+  it('createResourceToken rejects unsupported purposes', () => {
+    expect(createResourceToken(1, 'ws')).toEqual({ error: 'Invalid purpose', status: 400 });
+    expect(createEphemeralToken).not.toHaveBeenCalled();
+  });
+
+  it('createResourceToken returns token for download purpose', () => {
+    vi.mocked(createEphemeralToken).mockReturnValue('download-token-123');
+    expect(createResourceToken(1, 'download')).toEqual({ token: 'download-token-123' });
+    expect(createEphemeralToken).toHaveBeenCalledWith(1, 'download');
+  });
+
+  it('createResourceToken returns 503 when generator fails', () => {
+    vi.mocked(createEphemeralToken).mockReturnValue(null);
+    expect(createResourceToken(1, 'download')).toEqual({ error: 'Service unavailable', status: 503 });
   });
 });

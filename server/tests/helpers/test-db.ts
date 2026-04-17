@@ -23,6 +23,8 @@ import { runMigrations } from '../../src/db/migrations';
 // Tables to clear on reset, ordered to avoid FK violations
 const RESET_TABLES = [
   'file_links',
+  'gemini_execution_actions',
+  'gemini_executions',
   'collab_poll_votes',
   'collab_messages',
   'collab_poll_options',

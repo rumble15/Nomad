@@ -13,6 +13,7 @@ let shouldReconnect = false
 let refetchCallback: RefetchCallback | null = null
 let mySocketId: string | null = null
 let connecting = false
+let disconnectEpoch = 0
 
 export function getSocketId(): string | null {
   return mySocketId
@@ -73,6 +74,8 @@ function scheduleReconnect(): void {
 }
 
 async function connectInternal(_isReconnect = false): Promise<void> {
+  const attemptEpoch = disconnectEpoch
+  if (!shouldReconnect) return
   if (connecting) return
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
     return
@@ -82,20 +85,38 @@ async function connectInternal(_isReconnect = false): Promise<void> {
   const wsToken = await fetchWsToken()
   connecting = false
 
+  // Abort stale attempts if a disconnect happened while the token request was in flight.
+  if (attemptEpoch !== disconnectEpoch || !shouldReconnect) return
+
   if (!wsToken) {
     if (shouldReconnect) scheduleReconnect()
     return
   }
 
   const url = getWsUrl(wsToken)
-  socket = new WebSocket(url)
+  const nextSocket = new WebSocket(url)
 
-  socket.onopen = () => {
+  // Disconnect may happen between token fetch and socket setup.
+  if (attemptEpoch !== disconnectEpoch || !shouldReconnect) {
+    nextSocket.close()
+    return
+  }
+
+  socket = nextSocket
+
+  nextSocket.onopen = () => {
+    if (socket !== nextSocket || attemptEpoch !== disconnectEpoch || !shouldReconnect) {
+      if (nextSocket.readyState === WebSocket.OPEN || nextSocket.readyState === WebSocket.CONNECTING) {
+        nextSocket.close()
+      }
+      return
+    }
+
     reconnectDelay = 1000
     if (activeTrips.size > 0) {
       activeTrips.forEach(tripId => {
-        if (socket && socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ type: 'join', tripId }))
+        if (nextSocket.readyState === WebSocket.OPEN) {
+          nextSocket.send(JSON.stringify({ type: 'join', tripId }))
         }
       })
       if (refetchCallback) {
@@ -108,16 +129,16 @@ async function connectInternal(_isReconnect = false): Promise<void> {
     }
   }
 
-  socket.onmessage = handleMessage
+  nextSocket.onmessage = handleMessage
 
-  socket.onclose = () => {
-    socket = null
-    if (shouldReconnect) {
+  nextSocket.onclose = () => {
+    if (socket === nextSocket) socket = null
+    if (shouldReconnect && attemptEpoch === disconnectEpoch) {
       scheduleReconnect()
     }
   }
 
-  socket.onerror = () => {
+  nextSocket.onerror = () => {
     // onclose will fire after onerror, reconnect handled there
   }
 }
@@ -134,6 +155,8 @@ export function connect(): void {
 
 export function disconnect(): void {
   shouldReconnect = false
+  disconnectEpoch++
+  connecting = false
   if (reconnectTimer) {
     clearTimeout(reconnectTimer)
     reconnectTimer = null

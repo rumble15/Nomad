@@ -185,6 +185,14 @@ function broadcast(tripId: number | string, eventType: string, payload: Record<s
     if (ws.readyState !== 1) continue; // WebSocket.OPEN === 1
     // Exclude the specific socket that triggered the change
     if (excludeNum && socketId.get(ws) === excludeNum) continue;
+
+    // Revalidate access at send time so users removed from a trip stop receiving updates.
+    const user = socketUser.get(ws);
+    if (!user || !canAccessTrip(tripId, user.id)) {
+      leaveRoom(ws, tripId);
+      continue;
+    }
+
     ws.send(JSON.stringify({ type: eventType, tripId, ...payload }));
   }
 }

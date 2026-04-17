@@ -290,7 +290,22 @@ export const collabApi = {
   deletePoll: (tripId: number | string, id: number) => apiClient.delete(`/trips/${tripId}/collab/polls/${id}`).then(r => r.data),
   getMessages: (tripId: number | string, before?: string) => apiClient.get(`/trips/${tripId}/collab/messages${before ? `?before=${before}` : ''}`).then(r => r.data),
   sendMessage: (tripId: number | string, data: Record<string, unknown>) => apiClient.post(`/trips/${tripId}/collab/messages`, data).then(r => r.data),
-  executeGeminiIdea: (tripId: number | string, id: number, instruction?: string) => apiClient.post(`/trips/${tripId}/collab/messages/${id}/gemini-execute`, instruction ? { instruction } : {}).then(r => r.data),
+  executeGeminiIdea: (
+    tripId: number | string,
+    id: number,
+    instructionOrOptions?: string | Record<string, unknown>,
+    contextOptions?: Record<string, unknown>
+  ) => {
+    let payload: Record<string, unknown> = {}
+    if (typeof instructionOrOptions === 'string') {
+      const instruction = instructionOrOptions.trim()
+      if (instruction) payload.instruction = instruction
+      if (contextOptions && typeof contextOptions === 'object') payload = { ...payload, ...contextOptions }
+    } else if (instructionOrOptions && typeof instructionOrOptions === 'object') {
+      payload = instructionOrOptions
+    }
+    return apiClient.post(`/trips/${tripId}/collab/messages/${id}/gemini-execute`, payload).then(r => r.data)
+  },
   deleteMessage: (tripId: number | string, id: number) => apiClient.delete(`/trips/${tripId}/collab/messages/${id}`).then(r => r.data),
   reactMessage: (tripId: number | string, id: number, emoji: string) => apiClient.post(`/trips/${tripId}/collab/messages/${id}/react`, { emoji }).then(r => r.data),
   linkPreview: (tripId: number | string, url: string) => apiClient.get(`/trips/${tripId}/collab/link-preview?url=${encodeURIComponent(url)}`).then(r => r.data),

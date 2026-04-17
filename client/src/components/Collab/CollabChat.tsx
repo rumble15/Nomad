@@ -29,32 +29,104 @@ interface ChatMessage {
   system_name?: string
 }
 
-// ── Twemoji helper (Apple-style emojis via CDN) ──
-function emojiToCodepoint(emoji) {
-  const codepoints = []
-  for (const c of emoji) {
-    const cp = c.codePointAt(0)
-    if (cp !== 0xfe0f) codepoints.push(cp.toString(16)) // skip variation selector
+type GeminiExecutionMode = 'auto' | 'review' | 'force'
+
+interface GeminiExecutionMeta {
+  execution_id?: string
+  execution_mode?: GeminiExecutionMode | string
+  risk_level?: 'low' | 'medium' | 'high' | string
+  approval_required?: boolean
+  needs_approval?: boolean
+  needs_clarification?: boolean
+  duration_ms?: number
+  counts?: {
+    planned?: number
+    success?: number
+    skipped?: number
+    error?: number
   }
-  return codepoints.join('-')
 }
 
+interface GeminiExecutionResponse {
+  success?: boolean
+  message?: ChatMessage | null
+  model?: string
+  warnings?: string[]
+  actions?: Array<{ type?: string }>
+  execution?: Array<Record<string, unknown>>
+  needs_approval?: boolean
+  approval_required?: boolean
+  needs_clarification?: boolean
+  execution_id?: string
+  execution_mode?: GeminiExecutionMode | string
+  risk_level?: 'low' | 'medium' | 'high' | string
+  duration_ms?: number
+  execution_meta?: GeminiExecutionMeta
+}
+
+interface GeminiLastRun {
+  executionId: string
+  mode: GeminiExecutionMode
+  risk: 'low' | 'medium' | 'high' | 'unknown'
+  planned: number
+  success: number
+  skipped: number
+  errors: number
+  durationMs: number | null
+  needsApproval: boolean
+  needsClarification: boolean
+}
+
+interface GeminiPendingApproval {
+  sourceMessageId: number
+  instruction?: string
+  executionId?: string
+  risk: 'low' | 'medium' | 'high' | 'unknown'
+  actionCount: number
+}
+
+const GEMINI_TEMPLATES = [
+  {
+    id: 'day-flow',
+    label: 'Day Flow',
+    prompt: 'Plane den heutigen Tag als klaren Ablauf mit Zeitfenstern, Orten und 1 Backup-Option.',
+  },
+  {
+    id: 'budget-pass',
+    label: 'Budget Pass',
+    prompt: 'Erstelle ein kompaktes Budget mit den wichtigsten Kostenpunkten inklusive Kategorie und realistischen Preisen.',
+  },
+  {
+    id: 'packing-optimizer',
+    label: 'Packing Optimizer',
+    prompt: 'Erzeuge eine priorisierte Packliste nach Wetter, Aktivitäten und Dauer mit Mengenangaben.',
+  },
+  {
+    id: 'map-expansion',
+    label: 'Map Expansion',
+    prompt: 'Finde 5 passende Orte für diese Reise, priorisiere nach logistischer Nähe und füge nur sinnvolle Kandidaten hinzu.',
+  },
+]
+
+const EMOJI_FONT_STACK = '"Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif'
+const CHAT_TEXT_FONT_STACK = `var(--font-system), ${EMOJI_FONT_STACK}`
+
 function TwemojiImg({ emoji, size = 20, style = {} }) {
-  const cp = emojiToCodepoint(emoji)
-  const [failed, setFailed] = useState(false)
-
-  if (failed) {
-    return <span style={{ fontSize: size, lineHeight: 1, display: 'inline-block', verticalAlign: 'middle', ...style }}>{emoji}</span>
-  }
-
   return (
-    <img
-      src={`https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/${cp}.png`}
-      alt={emoji}
-      draggable={false}
-      style={{ width: size, height: size, display: 'inline-block', verticalAlign: 'middle', ...style }}
-      onError={() => setFailed(true)}
-    />
+    <span
+      role="img"
+      aria-label={emoji}
+      style={{
+        fontSize: size,
+        lineHeight: 1,
+        display: 'inline-block',
+        verticalAlign: 'middle',
+        fontFamily: EMOJI_FONT_STACK,
+        ...style,
+      }}
+    >
+      {emoji}
+    </span>
   )
 }
 
@@ -95,6 +167,64 @@ function shouldShowDateSeparator(msg, prevMsg) {
   const d1 = parseUTC(msg.created_at).toDateString()
   const d2 = parseUTC(prevMsg.created_at).toDateString()
   return d1 !== d2
+}
+
+function asGeminiMode(value: unknown): GeminiExecutionMode {
+  const raw = typeof value === 'string' ? value.toLowerCase().trim() : ''
+  if (raw === 'review') return 'review'
+  if (raw === 'force') return 'force'
+  return 'auto'
+}
+
+function asGeminiRisk(value: unknown): 'low' | 'medium' | 'high' | 'unknown' {
+  const raw = typeof value === 'string' ? value.toLowerCase().trim() : ''
+  if (raw === 'low' || raw === 'medium' || raw === 'high') return raw
+  return 'unknown'
+}
+
+function toFiniteInt(value: unknown): number | null {
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(n)) return null
+  return Math.max(0, Math.trunc(n))
+}
+
+function formatDurationMs(value: number | null): string {
+  if (!value || value <= 0) return 'n/a'
+  if (value < 1000) return `${value} ms`
+  const seconds = value / 1000
+  return `${seconds.toFixed(seconds >= 10 ? 0 : 1)} s`
+}
+
+function buildGeminiLastRun(data: GeminiExecutionResponse): GeminiLastRun | null {
+  const meta = data.execution_meta || {}
+  const counts = meta.counts || {}
+  const executionRows = Array.isArray(data.execution) ? data.execution : []
+  const fallbackSuccess = executionRows.filter((entry) => String((entry as Record<string, unknown>).status || '').toLowerCase() === 'ok').length
+  const fallbackSkipped = executionRows.filter((entry) => String((entry as Record<string, unknown>).status || '').toLowerCase() === 'skipped').length
+  const fallbackErrors = executionRows.filter((entry) => String((entry as Record<string, unknown>).status || '').toLowerCase() === 'error').length
+
+  const executionId = typeof meta.execution_id === 'string'
+    ? meta.execution_id
+    : (typeof data.execution_id === 'string' ? data.execution_id : '')
+  if (!executionId) return null
+
+  const planned = toFiniteInt(counts.planned) ?? (Array.isArray(data.actions) ? data.actions.length : executionRows.length)
+  const success = toFiniteInt(counts.success) ?? fallbackSuccess
+  const skipped = toFiniteInt(counts.skipped) ?? fallbackSkipped
+  const errors = toFiniteInt(counts.error) ?? fallbackErrors
+
+  return {
+    executionId,
+    mode: asGeminiMode(meta.execution_mode ?? data.execution_mode),
+    risk: asGeminiRisk(meta.risk_level ?? data.risk_level),
+    planned,
+    success,
+    skipped,
+    errors,
+    durationMs: toFiniteInt(meta.duration_ms ?? data.duration_ms),
+    needsApproval: !!(meta.needs_approval || meta.approval_required || data.needs_approval || data.approval_required),
+    needsClarification: !!(meta.needs_clarification || data.needs_clarification),
+  }
 }
 
 /* ── Emoji Picker ── */
@@ -232,7 +362,7 @@ function MessageText({ text }: MessageTextProps) {
       </a>
     )
   })
-  return <>{result}</>
+  return <span style={{ fontFamily: CHAT_TEXT_FONT_STACK }}>{result}</span>
 }
 
 /* ── Link Preview ── */
@@ -359,6 +489,7 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
   const is12h = useSettingsStore(s => s.settings.time_format) === '12h'
   const can = useCanDo()
   const trip = useTripStore((s) => s.trip)
+  const selectedDayId = useTripStore((s) => s.selectedDayId)
   const canEdit = can('collab_edit', trip)
 
   const [messages, setMessages] = useState([])
@@ -373,6 +504,9 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
   const [reactMenu, setReactMenu] = useState(null) // { msgId, x, y }
   const [deletingIds, setDeletingIds] = useState(new Set())
   const [executingGeminiId, setExecutingGeminiId] = useState<number | null>(null)
+  const [geminiExecutionMode, setGeminiExecutionMode] = useState<GeminiExecutionMode>('auto')
+  const [geminiLastRun, setGeminiLastRun] = useState<GeminiLastRun | null>(null)
+  const [geminiPendingApproval, setGeminiPendingApproval] = useState<GeminiPendingApproval | null>(null)
 
   const containerRef = useRef(null)
   const messagesRef = useRef(messages)
@@ -408,6 +542,12 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
     }).catch(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [tripId, scrollToBottom])
+
+  useEffect(() => {
+    setGeminiPendingApproval(null)
+    setGeminiLastRun(null)
+    setGeminiExecutionMode('auto')
+  }, [tripId])
 
   /* ── load more ── */
   const handleLoadMore = useCallback(async () => {
@@ -458,6 +598,42 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
     }
   }, [])
 
+  const executeGeminiForMessage = useCallback(async (
+    sourceMessageId: number,
+    opts?: { instruction?: string; mode?: GeminiExecutionMode }
+  ) => {
+    const mode = opts?.mode || geminiExecutionMode
+    const payload: Record<string, unknown> = {
+      execution_mode: mode,
+      ...(selectedDayId ? { active_day_id: selectedDayId } : {}),
+      ...(opts?.instruction ? { instruction: opts.instruction } : {}),
+    }
+
+    const data = await collabApi.executeGeminiIdea(tripId, sourceMessageId, payload) as GeminiExecutionResponse
+    if (data?.message) {
+      setMessages(prev => prev.some(m => m.id === data.message!.id) ? prev : [...prev, data.message])
+      if (isAtBottom.current) setTimeout(() => scrollToBottom('smooth'), 40)
+    }
+
+    const lastRun = buildGeminiLastRun(data)
+    if (lastRun) setGeminiLastRun(lastRun)
+
+    const needsApproval = !!(data.needs_approval || data.approval_required || data.execution_meta?.needs_approval || data.execution_meta?.approval_required)
+    if (needsApproval) {
+      setGeminiPendingApproval({
+        sourceMessageId,
+        instruction: opts?.instruction,
+        executionId: (data.execution_meta?.execution_id as string) || data.execution_id,
+        risk: asGeminiRisk(data.execution_meta?.risk_level || data.risk_level),
+        actionCount: Array.isArray(data.actions) ? data.actions.length : 0,
+      })
+    } else if (mode === 'force' || !needsApproval) {
+      setGeminiPendingApproval(null)
+    }
+
+    return data
+  }, [geminiExecutionMode, tripId, selectedDayId, scrollToBottom])
+
   /* ── send ── */
   const handleSend = useCallback(async () => {
     const body = text.trim()
@@ -476,51 +652,55 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
         setMessages(prev => prev.some(m => m.id === data.message.id) ? prev : [...prev, data.message])
       }
 
-      if (geminiCmdMatch) {
-        const sourceMessageId = sourceReply?.id || data?.message?.id
+      setText('')
+      setReplyTo(null)
+      setShowEmoji(false)
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto'
+        textareaRef.current.style.overflowY = 'hidden'
+      }
+      isAtBottom.current = true
+      setTimeout(() => scrollToBottom('smooth'), 50)
+
+      const replyTargetsGemini = !!sourceReply?.is_gemini
+      const shouldAutoGeminiReply = !geminiCmdMatch && replyTargetsGemini
+
+      if (geminiCmdMatch || shouldAutoGeminiReply) {
+        // If the replied message is already from Gemini, use the newly posted user message as source.
+        // Otherwise preserve the explicit "reply as source" behavior for normal messages.
+        const sourceMessageId = (sourceReply && !replyTargetsGemini) ? sourceReply.id : data?.message?.id
+        const instruction = geminiCmdMatch ? (geminiInstruction || undefined) : undefined
         if (sourceMessageId) {
           setExecutingGeminiId(sourceMessageId)
           try {
-            const geminiData = await collabApi.executeGeminiIdea(tripId, sourceMessageId, geminiInstruction || undefined)
-            if (geminiData?.message) {
-              setMessages(prev => prev.some(m => m.id === geminiData.message.id) ? prev : [...prev, geminiData.message])
-            }
+            await executeGeminiForMessage(sourceMessageId, { instruction, mode: geminiExecutionMode })
           } catch {
-            // Best effort: command message is still posted even if Gemini execution fails.
+            // Best effort: chat message is still posted even if Gemini execution fails.
           } finally {
             setExecutingGeminiId(null)
           }
         }
       }
-
-      setText(''); setReplyTo(null); setShowEmoji(false)
-      if (textareaRef.current) textareaRef.current.style.height = 'auto'
-      isAtBottom.current = true
-      setTimeout(() => scrollToBottom('smooth'), 50)
     } catch {} finally { setSending(false) }
-  }, [text, sending, replyTo, tripId, scrollToBottom])
+  }, [text, sending, replyTo, scrollToBottom, executeGeminiForMessage, geminiExecutionMode])
 
   const handleGeminiExecute = useCallback(async (msg) => {
     if (!msg || msg.is_gemini || executingGeminiId !== null) return
     setExecutingGeminiId(msg.id)
     try {
-      const data = await collabApi.executeGeminiIdea(tripId, msg.id)
-      if (data?.message) {
-        setMessages(prev => prev.some(m => m.id === data.message.id) ? prev : [...prev, data.message])
-      }
+      await executeGeminiForMessage(msg.id, { mode: geminiExecutionMode })
     } catch {
       // Best effort UI action.
     } finally {
       setExecutingGeminiId(null)
     }
-  }, [tripId, executingGeminiId])
+  }, [executingGeminiId, executeGeminiForMessage, geminiExecutionMode])
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }, [handleSend])
 
   const handleDelete = useCallback(async (msgId) => {
-    const msg = messages.find(m => m.id === msgId)
     requestAnimationFrame(() => {
       setDeletingIds(prev => new Set(prev).add(msgId))
     })
@@ -546,8 +726,79 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
     textareaRef.current?.focus()
   }, [])
 
+  const setComposerText = useCallback((nextText) => {
+    setText(nextText)
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current
+      if (!ta) return
+      ta.focus()
+      ta.style.height = 'auto'
+      const h = Math.min(ta.scrollHeight, 100)
+      ta.style.height = h + 'px'
+      ta.style.overflowY = ta.scrollHeight > 100 ? 'auto' : 'hidden'
+    })
+  }, [])
+
+  const prependGeminiCommand = useCallback((prefix) => {
+    const trimmed = text.trim()
+    if (!trimmed) {
+      setComposerText(prefix)
+      return
+    }
+    if (/^@gemini\b/i.test(trimmed)) {
+      setComposerText(text)
+      return
+    }
+    setComposerText(`${prefix}${trimmed}`)
+  }, [text, setComposerText])
+
+  const handleGeminiAssistClick = useCallback(() => {
+    prependGeminiCommand('@gemini ')
+  }, [prependGeminiCommand])
+
+  const handleGeminiWebSearchClick = useCallback(() => {
+    prependGeminiCommand('@gemini Suche im Web nach: ')
+  }, [prependGeminiCommand])
+
+  const handleGeminiTemplateClick = useCallback((templatePrompt: string) => {
+    setComposerText(`@gemini ${templatePrompt}`)
+  }, [setComposerText])
+
+  const handleApprovePending = useCallback(async () => {
+    if (!geminiPendingApproval || executingGeminiId !== null) return
+    setExecutingGeminiId(geminiPendingApproval.sourceMessageId)
+    try {
+      await executeGeminiForMessage(geminiPendingApproval.sourceMessageId, {
+        instruction: geminiPendingApproval.instruction,
+        mode: 'force',
+      })
+    } catch {
+      // Best effort: the review state remains visible.
+    } finally {
+      setExecutingGeminiId(null)
+    }
+  }, [geminiPendingApproval, executingGeminiId, executeGeminiForMessage])
+
+  const handleRejectPending = useCallback(() => {
+    setGeminiPendingApproval(null)
+  }, [])
+
   const isOwn = (msg) => !msg.is_gemini && String(msg.user_id) === String(currentUser.id)
   const isGeminiCommand = /^@gemini\b/i.test(text.trim())
+
+  const geminiModeLabel = geminiExecutionMode === 'auto'
+    ? 'Hybrid Auto'
+    : geminiExecutionMode === 'review'
+      ? 'Review First'
+      : 'Force Mode'
+
+  const geminiLastRunTone = geminiLastRun?.risk === 'high'
+    ? { border: '#f97316', bg: 'rgba(249,115,22,0.12)', text: '#9a3412' }
+    : geminiLastRun?.risk === 'medium'
+      ? { border: '#f59e0b', bg: 'rgba(245,158,11,0.12)', text: '#92400e' }
+      : geminiLastRun?.risk === 'low'
+        ? { border: '#16a34a', bg: 'rgba(22,163,74,0.12)', text: '#166534' }
+        : { border: 'var(--border-primary)', bg: 'var(--bg-secondary)', text: 'var(--text-secondary)' }
 
   // Check if message is only emoji (1-3 emojis, no other text)
   const isEmojiOnly = (text) => {
@@ -567,7 +818,16 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
 
   /* ── Main ── */
   return (
-    <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', position: 'relative', minHeight: 0, height: '100%' }}>
+    <div ref={containerRef} style={{
+      display: 'flex',
+      flexDirection: 'column',
+      flex: 1,
+      overflow: 'hidden',
+      position: 'relative',
+      minHeight: 0,
+      height: '100%',
+      background: 'radial-gradient(120% 120% at 50% 0%, var(--bg-secondary) 0%, var(--bg-card) 58%)',
+    }}>
       {/* Messages */}
       {messages.length === 0 ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--text-faint)', padding: 32 }}>
@@ -577,7 +837,7 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
         </div>
       ) : (
         <div ref={scrollRef} onScroll={checkAtBottom} className="chat-scroll" style={{
-          flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '8px 14px 4px', WebkitOverflowScrolling: 'touch',
+          flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '10px 14px 8px', WebkitOverflowScrolling: 'touch',
           display: 'flex', flexDirection: 'column', gap: 1,
         }}>
           {hasMore && (
@@ -706,7 +966,7 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
                       }}
                     >
                       {bigEmoji ? (
-                        <div style={{ fontSize: 40, lineHeight: 1.2, padding: '2px 0' }}>
+                        <div style={{ fontSize: 40, lineHeight: 1.2, padding: '2px 0', fontFamily: EMOJI_FONT_STACK }}>
                           {msg.text}
                         </div>
                       ) : (
@@ -717,6 +977,7 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
                           color: (own || isGemini) ? '#fff' : 'var(--text-primary)',
                           borderRadius: br, padding: hasReply ? '4px 4px 8px 4px' : '8px 14px',
                           fontSize: 14, lineHeight: 1.4, wordBreak: 'break-word', whiteSpace: 'pre-wrap',
+                          fontFamily: CHAT_TEXT_FONT_STACK,
                         }}>
                           {/* Inline reply quote */}
                           {hasReply && (
@@ -751,7 +1012,6 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
                         transition: 'opacity .1s',
                         ...(own ? { left: -6 } : { right: -6 }),
                       }}>
-                        <button onClick={() => setReplyTo(msg)} title={t('collab.chat.reply')} style={{
                         {!isGemini && canEdit && (
                           <button
                             onClick={() => handleGeminiExecute(msg)}
@@ -770,6 +1030,7 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
                             <Sparkles size={11} />
                           </button>
                         )}
+                        <button onClick={() => setReplyTo(msg)} title={t('collab.chat.reply')} style={{
                           width: 24, height: 24, borderRadius: '50%', border: 'none',
                           background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                           cursor: 'pointer', color: 'var(--accent-text)', padding: 0,
@@ -795,6 +1056,31 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
                         )}
                       </div>
                     </div>
+
+                    {!isGemini && canEdit && (
+                      <div style={{ marginTop: 4, paddingLeft: own ? 0 : 6, paddingRight: own ? 6 : 0 }}>
+                        <button
+                          onClick={() => handleGeminiExecute(msg)}
+                          disabled={executingGeminiId !== null}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            border: '1px solid var(--border-primary)',
+                            background: 'var(--bg-card)',
+                            color: 'var(--text-secondary)',
+                            borderRadius: 999,
+                            padding: '3px 9px',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            letterSpacing: 0.2,
+                            cursor: executingGeminiId !== null ? 'default' : 'pointer',
+                            opacity: executingGeminiId !== null ? 0.55 : 0.95,
+                          }}
+                        >
+                          <Sparkles size={10} />
+                          {t('collab.chat.geminiExecute') || 'Run with Gemini'}
+                        </button>
+                      </div>
+                    )}
 
                     {/* Reactions — iMessage style floating badge */}
                     {msg.reactions?.length > 0 && (
@@ -834,7 +1120,13 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
       )}
 
       {/* Composer */}
-      <div style={{ flexShrink: 0, padding: '8px 12px calc(12px + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--border-faint)', background: 'var(--bg-card)' }}>
+      <div style={{
+        flexShrink: 0,
+        padding: '10px 12px calc(12px + env(safe-area-inset-bottom, 0px))',
+        borderTop: '1px solid var(--border-faint)',
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 100%), var(--bg-card)',
+        boxShadow: '0 -10px 24px rgba(0,0,0,0.08)',
+      }}>
         {/* Reply preview */}
         {replyTo && (
           <div style={{
@@ -844,7 +1136,7 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
           }}>
             <Reply size={12} style={{ flexShrink: 0, opacity: 0.5 }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-              <strong>{replyTo.username}</strong>: {(replyTo.text || '').slice(0, 60)}
+              <strong>{replyTo.system_name || replyTo.username || 'Unknown'}</strong>: {(replyTo.text || '').slice(0, 60)}
             </span>
             <button onClick={() => setReplyTo(null)} style={{
               background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-faint)',
@@ -852,6 +1144,167 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
             }}>
               <X size={14} />
             </button>
+          </div>
+        )}
+
+        {canEdit && (
+          <div style={{ marginBottom: 10, border: '1px solid var(--border-faint)', borderRadius: 14, padding: 10, background: 'linear-gradient(135deg, rgba(37,99,235,0.08), rgba(56,189,248,0.06))' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'linear-gradient(135deg, #1d4ed8, #2563eb)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Sparkles size={11} />
+                </div>
+                <strong style={{ fontSize: 12, color: 'var(--text-primary)' }}>Gemini Command Center</strong>
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.2, color: 'var(--text-secondary)', background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 999, padding: '2px 8px' }}>
+                {geminiModeLabel}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {([
+                { id: 'auto', label: 'Hybrid Auto' },
+                { id: 'review', label: 'Review First' },
+                { id: 'force', label: 'Force Mode' },
+              ] as Array<{ id: GeminiExecutionMode; label: string }>).map((modeOption) => (
+                <button
+                  key={modeOption.id}
+                  onClick={() => setGeminiExecutionMode(modeOption.id)}
+                  style={{
+                    border: '1px solid var(--border-primary)',
+                    background: geminiExecutionMode === modeOption.id ? 'var(--bg-hover)' : 'var(--bg-card)',
+                    color: 'var(--text-secondary)',
+                    borderRadius: 999,
+                    padding: '4px 10px',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {modeOption.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              <button
+                onClick={handleGeminiAssistClick}
+                style={{
+                  border: '1px solid var(--border-primary)',
+                  background: isGeminiCommand ? 'var(--bg-hover)' : 'var(--bg-card)',
+                  color: 'var(--text-secondary)',
+                  borderRadius: 999,
+                  padding: '4px 10px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Gemini Assist
+              </button>
+              <button
+                onClick={handleGeminiWebSearchClick}
+                style={{
+                  border: '1px solid var(--border-primary)',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-secondary)',
+                  borderRadius: 999,
+                  padding: '4px 10px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Web Search
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {GEMINI_TEMPLATES.map((template) => (
+                <button
+                  key={template.id}
+                  onClick={() => handleGeminiTemplateClick(template.prompt)}
+                  style={{
+                    border: '1px dashed var(--border-primary)',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-secondary)',
+                    borderRadius: 10,
+                    padding: '3px 9px',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                  title={template.prompt}
+                >
+                  {template.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {geminiPendingApproval && (
+          <div style={{ marginBottom: 10, border: '1px solid #f59e0b', background: 'rgba(245,158,11,0.12)', borderRadius: 12, padding: '8px 10px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 3 }}>High-risk execution waiting for approval</div>
+            <div style={{ fontSize: 11, color: '#78350f', marginBottom: 7 }}>
+              Risk: {geminiPendingApproval.risk} · Planned actions: {geminiPendingApproval.actionCount}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={handleApprovePending}
+                disabled={executingGeminiId !== null}
+                style={{
+                  border: '1px solid #f59e0b',
+                  background: '#f59e0b',
+                  color: '#fff',
+                  borderRadius: 8,
+                  padding: '4px 10px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: executingGeminiId !== null ? 'default' : 'pointer',
+                  opacity: executingGeminiId !== null ? 0.6 : 1,
+                }}
+              >
+                Approve & Execute
+              </button>
+              <button
+                onClick={handleRejectPending}
+                style={{
+                  border: '1px solid var(--border-primary)',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-secondary)',
+                  borderRadius: 8,
+                  padding: '4px 10px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
+        {geminiLastRun && (
+          <div style={{ marginBottom: 10, border: `1px solid ${geminiLastRunTone.border}`, background: geminiLastRunTone.bg, borderRadius: 12, padding: '8px 10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+              <strong style={{ fontSize: 11, color: geminiLastRunTone.text }}>Last Gemini Run</strong>
+              <span style={{ fontSize: 10, color: geminiLastRunTone.text, fontWeight: 700 }}>{geminiLastRun.risk.toUpperCase()} · {geminiLastRun.mode.toUpperCase()}</span>
+            </div>
+            <div style={{ marginTop: 5, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Planned: <strong>{geminiLastRun.planned}</strong></div>
+              <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>OK: <strong>{geminiLastRun.success}</strong></div>
+              <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Skipped: <strong>{geminiLastRun.skipped}</strong></div>
+              <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Errors: <strong>{geminiLastRun.errors}</strong></div>
+            </div>
+            <div style={{ marginTop: 5, fontSize: 10, color: 'var(--text-secondary)' }}>
+              Runtime: {formatDurationMs(geminiLastRun.durationMs)} · ID: {geminiLastRun.executionId.slice(0, 8)}
+            </div>
           </div>
         )}
 
@@ -874,12 +1327,18 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
             disabled={!canEdit}
             style={{
               flex: 1, resize: 'none', border: '1px solid var(--border-primary)', borderRadius: 20,
-              padding: '8px 14px', fontSize: 14, lineHeight: 1.4, fontFamily: 'inherit',
+              padding: '8px 14px', fontSize: 14, lineHeight: 1.4, fontFamily: CHAT_TEXT_FONT_STACK,
               background: 'var(--bg-input)', color: 'var(--text-primary)', outline: 'none',
               maxHeight: 100, overflowY: 'hidden',
               opacity: canEdit ? 1 : 0.5,
             }}
-            placeholder={t('collab.chat.placeholder')}
+            placeholder={
+              geminiExecutionMode === 'review'
+                ? 'Schreibe eine Nachricht oder starte @gemini im Review-First Modus...'
+                : geminiExecutionMode === 'force'
+                  ? 'Schreibe eine Nachricht oder starte @gemini im Force Modus...'
+                  : t('collab.chat.placeholder')
+            }
             value={text}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
@@ -898,9 +1357,17 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
             </button>
           )}
         </div>
+        {executingGeminiId !== null && (
+          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-faint)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Sparkles size={12} style={{ opacity: 0.85 }} />
+            <span>{t('collab.chat.geminiThinking') || 'Gemini thinks with active trip context...'}</span>
+            {selectedDayId ? <span style={{ opacity: 0.8 }}>{`Day #${selectedDayId}`}</span> : null}
+            <span style={{ opacity: 0.8 }}>{geminiModeLabel}</span>
+          </div>
+        )}
         {isGeminiCommand && (
           <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-faint)' }}>
-            {t('collab.chat.geminiCommandHint') || 'Gemini execution starts after sending. Reply to a message to use it as source idea.'}
+            {t('collab.chat.geminiCommandHint') || 'Gemini execution starts after sending. High-risk plans request explicit approval unless force mode is used.'}
           </div>
         )}
       </div>

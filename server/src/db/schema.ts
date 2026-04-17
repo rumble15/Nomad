@@ -383,9 +383,50 @@ function createTables(db: Database.Database): void {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS gemini_executions (
+      id TEXT PRIMARY KEY,
+      trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      source_message_id INTEGER REFERENCES collab_messages(id) ON DELETE SET NULL,
+      instruction TEXT,
+      model TEXT,
+      execution_mode TEXT NOT NULL DEFAULT 'auto',
+      risk_level TEXT NOT NULL DEFAULT 'low',
+      approval_required INTEGER NOT NULL DEFAULT 0,
+      needs_clarification INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'running',
+      action_count INTEGER NOT NULL DEFAULT 0,
+      success_count INTEGER NOT NULL DEFAULT 0,
+      skipped_count INTEGER NOT NULL DEFAULT 0,
+      error_count INTEGER NOT NULL DEFAULT 0,
+      duration_ms INTEGER,
+      warnings TEXT,
+      error_message TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS gemini_execution_actions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      execution_id TEXT NOT NULL REFERENCES gemini_executions(id) ON DELETE CASCADE,
+      action_index INTEGER NOT NULL,
+      action_type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      resource_id TEXT,
+      summary TEXT,
+      error_message TEXT,
+      payload TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE INDEX IF NOT EXISTS idx_collab_notes_trip ON collab_notes(trip_id);
     CREATE INDEX IF NOT EXISTS idx_collab_polls_trip ON collab_polls(trip_id);
     CREATE INDEX IF NOT EXISTS idx_collab_messages_trip ON collab_messages(trip_id);
+    CREATE INDEX IF NOT EXISTS idx_gemini_executions_trip ON gemini_executions(trip_id);
+    CREATE INDEX IF NOT EXISTS idx_gemini_executions_user ON gemini_executions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_gemini_executions_created ON gemini_executions(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_gemini_executions_status ON gemini_executions(status);
+    CREATE INDEX IF NOT EXISTS idx_gemini_execution_actions_execution ON gemini_execution_actions(execution_id);
   `);
 
   db.exec(`

@@ -43,9 +43,9 @@ import { createApp } from '../../src/app';
 import { createTables } from '../../src/db/schema';
 import { runMigrations } from '../../src/db/migrations';
 import { resetTestDb } from '../helpers/test-db';
-import { createUser, createTrip } from '../helpers/factories';
+import { createUser, createTrip, addTripMember } from '../helpers/factories';
 import { loginAttempts, mfaAttempts } from '../../src/routes/auth';
-import { setupWebSocket } from '../../src/websocket';
+import { setupWebSocket, broadcast } from '../../src/websocket';
 import { createEphemeralToken } from '../../src/services/ephemeralTokens';
 
 let server: http.Server;
@@ -251,6 +251,31 @@ describe('WS rooms', () => {
       const msg = await client.next();
       expect(msg.type).toBe('left');
       expect(msg.tripId).toBe(trip.id);
+    } finally {
+      client.close();
+    }
+  });
+
+  it('WS-011 — member removed from trip stops receiving broadcasts', async () => {
+    const { user: owner } = createUser(testDb);
+    const { user: member } = createUser(testDb);
+    const trip = createTrip(testDb, owner.id);
+    addTripMember(testDb, trip.id, member.id);
+    const token = createEphemeralToken(member.id, 'ws')!;
+
+    const client = await connectWs(token);
+    try {
+      await client.next(); // welcome
+
+      client.send({ type: 'join', tripId: trip.id });
+      await client.next(); // joined
+
+      // Revoke access while socket is still connected.
+      testDb.prepare('DELETE FROM trip_members WHERE trip_id = ? AND user_id = ?').run(trip.id, member.id);
+
+      broadcast(trip.id, 'trip:updated', { field: 'title', value: 'new title' });
+
+      await expect(client.waitFor((m: any) => m.type === 'trip:updated', 400)).rejects.toThrow();
     } finally {
       client.close();
     }
