@@ -1,26 +1,32 @@
 # Stage 1: Build React client
 FROM node:22-alpine AS client-builder
-WORKDIR /app/client
+WORKDIR /client
 COPY client/package*.json ./
 RUN npm ci
 COPY client/ ./
 RUN npm run build
 
-# Stage 2: Production server
+# Stage 2: Build production server
 FROM node:22-alpine
 
 WORKDIR /app
 
-# Timezone support + native deps (better-sqlite3 needs build tools)
+# Install build tools and timezone support
+RUN apk add --no-cache tzdata dumb-init su-exec python3 make g++
+
+# Copy and install server dependencies
 COPY server/package*.json ./
-RUN apk add --no-cache tzdata dumb-init su-exec python3 make g++ && \
-    npm ci --production && \
+RUN npm ci --production && \
     apk del python3 make g++
 
+# Copy server source code
 COPY server/ ./
-COPY --from=client-builder /app/client/dist ./public
-COPY --from=client-builder /app/client/public/fonts ./public/fonts
 
+# Copy built client from client-builder stage
+COPY --from=client-builder /client/dist ./public
+COPY --from=client-builder /client/public/fonts ./public/fonts
+
+# Create necessary directories
 RUN mkdir -p /app/data/logs /app/uploads/files /app/uploads/covers /app/uploads/avatars /app/uploads/photos && \
     mkdir -p /app/server && ln -s /app/uploads /app/server/uploads && ln -s /app/data /app/server/data && \
     chown -R node:node /app
