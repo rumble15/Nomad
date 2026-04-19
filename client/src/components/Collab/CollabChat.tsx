@@ -85,26 +85,26 @@ interface GeminiPendingApproval {
   actionCount: number
 }
 
-const GEMINI_TEMPLATES = [
+const getGeminiTemplates = (t: (key: string) => string) => [
   {
     id: 'day-flow',
-    label: 'Day Flow',
-    prompt: 'Plane den heutigen Tag als klaren Ablauf mit Zeitfenstern, Orten und 1 Backup-Option.',
+    label: t('collab.chat.template.dayFlow'),
+    prompt: t('collab.chat.template.dayFlowPrompt'),
   },
   {
     id: 'budget-pass',
-    label: 'Budget Pass',
-    prompt: 'Erstelle ein kompaktes Budget mit den wichtigsten Kostenpunkten inklusive Kategorie und realistischen Preisen.',
+    label: t('collab.chat.template.budgetPass'),
+    prompt: t('collab.chat.template.budgetPassPrompt'),
   },
   {
     id: 'packing-optimizer',
-    label: 'Packing Optimizer',
-    prompt: 'Erzeuge eine priorisierte Packliste nach Wetter, Aktivitäten und Dauer mit Mengenangaben.',
+    label: t('collab.chat.template.packingOptimizer'),
+    prompt: t('collab.chat.template.packingOptimizerPrompt'),
   },
   {
     id: 'map-expansion',
-    label: 'Map Expansion',
-    prompt: 'Finde 5 passende Orte für diese Reise, priorisiere nach logistischer Nähe und füge nur sinnvolle Kandidaten hinzu.',
+    label: t('collab.chat.template.mapExpansion'),
+    prompt: t('collab.chat.template.mapExpansionPrompt'),
   },
 ]
 
@@ -491,6 +491,7 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
   const trip = useTripStore((s) => s.trip)
   const selectedDayId = useTripStore((s) => s.selectedDayId)
   const canEdit = can('collab_edit', trip)
+  const geminiTemplates = getGeminiTemplates(t)
 
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(true)
@@ -1272,7 +1273,7 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {GEMINI_TEMPLATES.map((template) => (
+              {geminiTemplates.map((template) => (
                 <button
                   key={template.id}
                   onClick={() => handleGeminiTemplateClick(template.prompt)}
