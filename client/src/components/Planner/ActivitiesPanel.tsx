@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Plus, Trash2, CheckCircle2, Circle, MapPin, Clock, Calendar, Sparkles, ChevronDown, ChevronUp, Edit2, X } from 'lucide-react'
 import { activitiesApi } from '../../api/client'
-import { useTranslation } from '../../i18n'
 import { useCanDo } from '../../store/permissionsStore'
 import { useTripStore } from '../../store/tripStore'
 import { addListener, removeListener } from '../../api/websocket'
@@ -52,7 +51,6 @@ interface ActivitiesPanelProps {
 }
 
 export default function ActivitiesPanel({ tripId, places, onActivityClick }: ActivitiesPanelProps) {
-  const { t } = useTranslation()
   const can = useCanDo()
   const trip = useTripStore(s => s.trip)
   const canEdit = can('place_edit', trip)
