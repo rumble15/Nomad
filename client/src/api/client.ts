@@ -137,6 +137,7 @@ export const placesApi = {
         if (!reader) { onDone('No response body'); return }
         const decoder = new TextDecoder()
         let lineBuffer = ''
+        let pendingEventType = ''
         const pump = (): Promise<void> =>
           reader.read().then(({ done, value }) => {
             if (done) { onDone(); return }
@@ -145,16 +146,27 @@ export const placesApi = {
             lineBuffer = lines.pop() ?? ''
             for (const line of lines) {
               const trimmed = line.trimEnd()
-              if (trimmed.startsWith('event: error')) continue
-              if (trimmed.startsWith('event: done')) { onDone(); return }
-              if (!trimmed.startsWith('data:')) continue
+              if (trimmed.startsWith('event:')) {
+                pendingEventType = trimmed.slice(6).trim()
+                continue
+              }
+              if (!trimmed.startsWith('data:')) {
+                if (trimmed === '') pendingEventType = ''
+                continue
+              }
               const jsonStr = trimmed.slice(5).trim()
-              if (!jsonStr || jsonStr === '{}') continue
+              if (!jsonStr || jsonStr === '{}') { pendingEventType = ''; continue }
               try {
                 const payload = JSON.parse(jsonStr) as { text?: string; message?: string }
-                if (payload.message) { onDone(payload.message); return }
+                if (pendingEventType === 'error' || payload.message) {
+                  onDone(payload.message || 'Unknown error')
+                  pendingEventType = ''
+                  return
+                }
+                if (pendingEventType === 'done') { onDone(); return }
                 if (payload.text) onText(payload.text)
               } catch { /* skip malformed chunks */ }
+              pendingEventType = ''
             }
             return pump()
           })
