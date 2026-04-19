@@ -1138,7 +1138,6 @@ const de: Record<string, string | { name: string; category: string }[]> = {
   'packing.saveAsTemplate': 'Als Vorlage speichern',
   'packing.templateName': 'Vorlagenname',
   'packing.templateSaved': 'Packliste als Vorlage gespeichert',
-  'packing.assignUser': 'Person zuweisen',
   'packing.bags': 'Gepäck',
   'packing.noBag': 'Nicht zugeordnet',
   'packing.totalWeight': 'Gesamtgewicht',

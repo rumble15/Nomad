@@ -1470,7 +1470,7 @@ const fr: Record<string, string> = {
   'collab.chat.geminiExecute': 'Laisser Gemini exécuter',
   'collab.chat.geminiCommandHint': 'L\'exécution de Gemini commence après l\'envoi. Répondez à un message pour l\'utiliser comme idée source.',
   'collab.chat.template.dayFlow': 'Plan de Journée',
-  'collab.chat.template.dayFlowPrompt': 'Planifie la journée d\\'aujourd\\'hui comme un programme clair avec des créneaux horaires, des lieux et 1 option de secours.',
+  'collab.chat.template.dayFlowPrompt': 'Planifie la journée d\'aujourd\'hui comme un programme clair avec des créneaux horaires, des lieux et 1 option de secours.',
   'collab.chat.template.budgetPass': 'Budget',
   'collab.chat.template.budgetPassPrompt': 'Crée un budget compact avec les principaux postes de coût incluant catégorie et prix réalistes.',
   'collab.chat.template.packingOptimizer': 'Optimiseur de Bagages',
