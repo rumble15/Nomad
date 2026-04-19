@@ -151,12 +151,24 @@ async function runWebSearch(query: string, maxResults = 5): Promise<WebSearchRes
 
   const capped = Math.max(1, Math.min(8, Math.trunc(maxResults || 5)));
   const endpoint = `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_redirect=1&no_html=1&skip_disambig=1`;
-  const response = await fetch(endpoint, {
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': 'TREK/1.0',
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'TREK/1.0',
+      },
+      signal: controller.signal,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Request failed';
+    throw new Error(`Web search request failed: ${msg}`);
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     throw new Error(`Web search failed (HTTP ${response.status}).`);

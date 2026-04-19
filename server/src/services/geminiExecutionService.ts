@@ -58,9 +58,9 @@ export function normalizeGeminiExecutionMode(value: unknown): GeminiExecutionMod
 
 export function normalizeGeminiActionStatus(value: unknown): GeminiActionStatus {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  if (raw === 'error') return 'error';
+  if (raw === 'ok') return 'ok';
   if (raw === 'skipped') return 'skipped';
-  return 'ok';
+  return 'error';
 }
 
 export function classifyGeminiRisk(actions: GeminiPlannedAction[]): GeminiRiskLevel {

@@ -126,13 +126,13 @@ export function PhotoUpload({ tripId, days, places, onUpload, onClose }: PhotoUp
       {files.length > 0 && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Tag verknüpfen</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">{t('photos.linkDay')}</label>
             <select
               value={dayId}
               onChange={e => setDayId(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             >
-              <option value="">Kein Tag</option>
+              <option value="">{t('photos.noDay')}</option>
               {(days || []).map(day => (
                 <option key={day.id} value={day.id}>Tag {day.day_number}</option>
               ))}
@@ -152,12 +152,12 @@ export function PhotoUpload({ tripId, days, places, onUpload, onClose }: PhotoUp
             </select>
           </div>
           <div className="col-span-2">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Beschriftung (für alle)</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">{t('photos.captionForAll')}</label>
             <input
               type="text"
               value={caption}
               onChange={e => setCaption(e.target.value)}
-              placeholder="Optionale Beschriftung..."
+              placeholder={t('photos.captionPlaceholder')}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>

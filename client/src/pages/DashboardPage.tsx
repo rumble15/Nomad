@@ -228,7 +228,7 @@ function SpotlightCard({ trip, onEdit, onCopy, onDelete, onArchive, onClick, t, 
               <MapPin size={13} /> {trip.place_count || 0} {t('dashboard.places')}
             </div>
             <div className="hidden md:flex" style={{ alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>
-              <Users size={13} /> {trip.shared_count+1 || 0} {t('dashboard.members')}
+              <Users size={13} /> {(trip.shared_count ?? 0) + 1} {t('dashboard.members')}
             </div>
           </div>
         </div>
@@ -313,7 +313,7 @@ function TripCard({ trip, onEdit, onCopy, onDelete, onArchive, onClick, t, local
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           <Stat label={t('dashboard.days')} value={trip.day_count || 0} />
           <Stat label={t('dashboard.places')} value={trip.place_count || 0} />
-          <Stat label={t('dashboard.members')} value={trip.shared_count+1 || 0} />
+          <Stat label={t('dashboard.members')} value={(trip.shared_count ?? 0) + 1} />
         </div>
 
         {(onEdit || onCopy || onArchive || onDelete) && (
@@ -415,7 +415,7 @@ function TripListItem({ trip, onEdit, onCopy, onDelete, onArchive, onClick, t, l
           <MapPin size={11} /> {trip.place_count || 0}
         </div>
         <div className="hidden md:flex" style={{ alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>
-          <Users size={11} /> {trip.shared_count+1 || 0}
+          <Users size={11} /> {(trip.shared_count ?? 0) + 1}
         </div>
       </div>
 

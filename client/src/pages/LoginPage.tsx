@@ -60,7 +60,7 @@ export default function LoginPage(): React.ReactElement {
       authApi.validateInvite(invite).then(() => {
         setInviteValid(true)
       }).catch(() => {
-        setError('Invalid or expired invite link')
+        setError(t('login.inviteExpired'))
       })
       window.history.replaceState({}, '', window.location.pathname)
     }
@@ -70,19 +70,19 @@ export default function LoginPage(): React.ReactElement {
       exchangeInitiated.current = true
       setIsLoading(true)
       fetch('/api/auth/oidc/exchange?code=' + encodeURIComponent(oidcCode), { credentials: 'include' })
-        .then(r => r.json())
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
         .then(async data => {
           window.history.replaceState({}, '', '/login')
           if (data.token) {
             await loadUser()
             navigate('/dashboard', { replace: true })
           } else {
-            setError(data.error || 'OIDC login failed')
+            setError(data.error || t('login.oidc.tokenFailed'))
           }
         })
         .catch(() => {
           window.history.replaceState({}, '', '/login')
-          setError('OIDC login failed')
+          setError(t('login.oidc.tokenFailed'))
         })
         .finally(() => setIsLoading(false))
       return
@@ -167,8 +167,8 @@ export default function LoginPage(): React.ReactElement {
         return
       }
       if (mode === 'register') {
-        if (!username.trim()) { setError('Username is required'); setIsLoading(false); return }
-        if (password.length < 8) { setError('Password must be at least 8 characters'); setIsLoading(false); return }
+        if (!username.trim()) { setError(t('login.usernameRequired')); setIsLoading(false); return }
+        if (password.length < 8) { setError(t('register.passwordTooShort')); setIsLoading(false); return }
         await register(username, email, password, inviteToken || undefined)
       } else {
         const result = await login(email, password)
