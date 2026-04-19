@@ -190,3 +190,10 @@ export function addListener(fn: WebSocketListener): void {
 export function removeListener(fn: WebSocketListener): void {
   listeners.delete(fn)
 }
+
+/** Send a raw JSON message through the WebSocket (e.g. for WebRTC signaling). */
+export function sendRaw(msg: Record<string, unknown>): void {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify(msg))
+  }
+}

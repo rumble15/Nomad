@@ -828,6 +828,51 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
       height: '100%',
       background: 'radial-gradient(120% 120% at 50% 0%, var(--bg-secondary) 0%, var(--bg-card) 58%)',
     }}>
+      {/* Premium Chat Header */}
+      <div style={{
+        flexShrink: 0,
+        padding: '10px 14px 8px',
+        borderBottom: '1px solid var(--border-faint)',
+        background: 'linear-gradient(135deg, rgba(99,102,241,0.07) 0%, rgba(37,99,235,0.05) 50%, rgba(168,85,247,0.05) 100%)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #6366f1 0%, #2563eb 50%, #8b5cf6 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 10px rgba(99,102,241,0.4)',
+          }}>
+            <MessageCircle size={14} color="white" />
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: -0.2 }}>Team Chat</div>
+            <div style={{ fontSize: 10, color: 'var(--text-faint)', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <Sparkles size={9} color="#8b5cf6" />
+              <span style={{ background: 'linear-gradient(90deg, #6366f1, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                Gemini AI aktiv
+              </span>
+            </div>
+          </div>
+        </div>
+        {executingGeminiId !== null && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20,
+            background: 'linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(37,99,235,0.12) 100%)',
+            border: '1px solid rgba(99,102,241,0.25)',
+          }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#6366f1', animation: 'gemini-pulse 1.2s ease-in-out infinite' }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#6366f1' }}>Gemini denkt…</span>
+          </div>
+        )}
+        <style>{`
+          @keyframes gemini-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.8); }
+          }
+        `}</style>
+      </div>
+
       {/* Messages */}
       {messages.length === 0 ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--text-faint)', padding: 32 }}>
@@ -972,12 +1017,13 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
                       ) : (
                         <div style={{
                           background: isGemini
-                            ? 'linear-gradient(135deg, #1d4ed8, #2563eb)'
+                            ? 'linear-gradient(135deg, #4f46e5 0%, #2563eb 40%, #7c3aed 100%)'
                             : own ? '#007AFF' : 'var(--bg-secondary)',
                           color: (own || isGemini) ? '#fff' : 'var(--text-primary)',
                           borderRadius: br, padding: hasReply ? '4px 4px 8px 4px' : '8px 14px',
                           fontSize: 14, lineHeight: 1.4, wordBreak: 'break-word', whiteSpace: 'pre-wrap',
                           fontFamily: CHAT_TEXT_FONT_STACK,
+                          boxShadow: isGemini ? '0 2px 12px rgba(79,70,229,0.35)' : undefined,
                         }}>
                           {/* Inline reply quote */}
                           {hasReply && (
@@ -1064,16 +1110,19 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
                           disabled={executingGeminiId !== null}
                           style={{
                             display: 'inline-flex', alignItems: 'center', gap: 5,
-                            border: '1px solid var(--border-primary)',
-                            background: 'var(--bg-card)',
-                            color: 'var(--text-secondary)',
+                            border: 'none',
+                            background: executingGeminiId !== null
+                              ? 'var(--bg-secondary)'
+                              : 'linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(37,99,235,0.12) 100%)',
+                            color: executingGeminiId !== null ? 'var(--text-faint)' : '#6366f1',
                             borderRadius: 999,
-                            padding: '3px 9px',
+                            padding: '4px 10px',
                             fontSize: 10,
                             fontWeight: 700,
                             letterSpacing: 0.2,
                             cursor: executingGeminiId !== null ? 'default' : 'pointer',
-                            opacity: executingGeminiId !== null ? 0.55 : 0.95,
+                            opacity: executingGeminiId !== null ? 0.55 : 1,
+                            transition: 'all 0.15s',
                           }}
                         >
                           <Sparkles size={10} />
@@ -1148,15 +1197,15 @@ export default function CollabChat({ tripId, currentUser }: CollabChatProps) {
         )}
 
         {canEdit && (
-          <div style={{ marginBottom: 10, border: '1px solid var(--border-faint)', borderRadius: 14, padding: 10, background: 'linear-gradient(135deg, rgba(37,99,235,0.08), rgba(56,189,248,0.06))' }}>
+          <div style={{ marginBottom: 10, border: '1px solid rgba(99,102,241,0.25)', borderRadius: 14, padding: 10, background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(37,99,235,0.06) 50%, rgba(168,85,247,0.06) 100%)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'linear-gradient(135deg, #1d4ed8, #2563eb)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1 0%, #2563eb 50%, #8b5cf6 100%)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(99,102,241,0.4)' }}>
                   <Sparkles size={11} />
                 </div>
-                <strong style={{ fontSize: 12, color: 'var(--text-primary)' }}>Gemini Command Center</strong>
+                <strong style={{ fontSize: 12, color: 'var(--text-primary)', background: 'linear-gradient(90deg, #6366f1, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Gemini Command Center</strong>
               </div>
-              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.2, color: 'var(--text-secondary)', background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 999, padding: '2px 8px' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.2, color: '#6366f1', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 999, padding: '2px 8px' }}>
                 {geminiModeLabel}
               </span>
             </div>

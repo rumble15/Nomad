@@ -145,6 +145,46 @@ function setupWebSocket(server: http.Server): void {
         leaveRoom(nws, tripId);
         nws.send(JSON.stringify({ type: 'left', tripId }));
       }
+
+      // WebRTC signaling: relay offer/answer/ice to a specific target socket
+      if ((msg.type === 'rtc:offer' || msg.type === 'rtc:answer' || msg.type === 'rtc:ice') && msg.tripId) {
+        const rtcMsg = msg as { type: string; tripId: number | string; targetSocketId?: number; payload?: unknown };
+        const tripId = Number(rtcMsg.tripId);
+        if (!canAccessTrip(tripId, user.id)) return;
+        const fromId = socketId.get(nws);
+        const room = rooms.get(tripId);
+        if (room) {
+          for (const peer of room) {
+            const peerId = socketId.get(peer);
+            if (rtcMsg.targetSocketId ? peerId === rtcMsg.targetSocketId : peer !== nws) {
+              if (peer.readyState === peer.OPEN) {
+                peer.send(JSON.stringify({
+                  type: rtcMsg.type,
+                  fromSocketId: fromId,
+                  fromUserId: user.id,
+                  fromUsername: user.username,
+                  payload: rtcMsg.payload,
+                  tripId,
+                }));
+                if (rtcMsg.targetSocketId) break;
+              }
+            }
+          }
+        }
+      }
+
+      // Voice channel: user joins/leaves voice in a trip room
+      if ((msg.type === 'rtc:join' || msg.type === 'rtc:leave') && msg.tripId) {
+        const tripId = Number(msg.tripId);
+        if (!canAccessTrip(tripId, user.id)) return;
+        const fromId = socketId.get(nws);
+        broadcast(tripId, msg.type, {
+          fromSocketId: fromId,
+          fromUserId: user.id,
+          fromUsername: user.username,
+          tripId,
+        }, String(fromId));
+      }
     });
 
     nws.on('close', () => {

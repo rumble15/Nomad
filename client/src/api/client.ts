@@ -179,6 +179,13 @@ export const placesApi = {
   },
 }
 
+export const activitiesApi = {
+  list: (tripId: number | string) => apiClient.get(`/trips/${tripId}/activities`).then(r => r.data),
+  create: (tripId: number | string, data: Record<string, unknown>) => apiClient.post(`/trips/${tripId}/activities`, data).then(r => r.data),
+  update: (tripId: number | string, id: number, data: Record<string, unknown>) => apiClient.put(`/trips/${tripId}/activities/${id}`, data).then(r => r.data),
+  delete: (tripId: number | string, id: number) => apiClient.delete(`/trips/${tripId}/activities/${id}`).then(r => r.data),
+}
+
 export const assignmentsApi = {
   list: (tripId: number | string, dayId: number | string) => apiClient.get(`/trips/${tripId}/days/${dayId}/assignments`).then(r => r.data),
   create: (tripId: number | string, dayId: number | string, data: { place_id: number | string }) => apiClient.post(`/trips/${tripId}/days/${dayId}/assignments`, data).then(r => r.data),

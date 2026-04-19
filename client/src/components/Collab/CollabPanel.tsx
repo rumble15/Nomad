@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import { useTranslation } from '../../i18n'
 import { MessageCircle, StickyNote, BarChart3, Sparkles } from 'lucide-react'
@@ -6,6 +6,7 @@ import CollabChat from './CollabChat'
 import CollabNotes from './CollabNotes'
 import CollabPolls from './CollabPolls'
 import WhatsNextWidget from './WhatsNextWidget'
+import VoiceChat from './VoiceChat'
 
 function useIsDesktop(breakpoint = 1024) {
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= breakpoint)
@@ -34,11 +35,26 @@ interface CollabPanelProps {
   tripMembers?: TripMember[]
 }
 
+function sendWsMsg(msg: Record<string, unknown>) {
+  // Access the singleton WebSocket directly via a helper
+  const wsModule = (window as any).__nomadWs
+  if (wsModule?.readyState === WebSocket.OPEN) {
+    wsModule.send(JSON.stringify(msg))
+  }
+}
+
 export default function CollabPanel({ tripId, tripMembers = [] }: CollabPanelProps) {
   const { user } = useAuthStore()
   const { t } = useTranslation()
   const [mobileTab, setMobileTab] = useState('chat')
   const isDesktop = useIsDesktop()
+
+  // Send WS message using the websocket sendRaw helper
+  const sendWsMessage = useCallback((msg: Record<string, unknown>) => {
+    import('../../api/websocket').then(ws => {
+      ws.sendRaw(msg)
+    })
+  }, [])
 
   const tabs = [
     { id: 'chat', label: t('collab.tabs.chat') || 'Chat', icon: MessageCircle },
@@ -51,8 +67,9 @@ export default function CollabPanel({ tripId, tripMembers = [] }: CollabPanelPro
     return (
       <div style={{ height: '100%', display: 'flex', gap: 12, padding: 12, overflow: 'hidden', minHeight: 0 }}>
         {/* Chat — left, fixed width */}
-        <div style={{ ...card, flex: '0 0 380px' }}>
+        <div style={{ ...card, flex: '0 0 380px', display: 'flex', flexDirection: 'column' }}>
           <CollabChat tripId={tripId} currentUser={user} />
+          <VoiceChat tripId={tripId} currentUser={user} sendWsMessage={sendWsMessage} />
         </div>
 
         {/* Right column: Notes top, Polls + What's Next bottom */}
@@ -101,8 +118,15 @@ export default function CollabPanel({ tripId, tripMembers = [] }: CollabPanelPro
         })}
       </div>
 
-      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
-        {mobileTab === 'chat' && <CollabChat tripId={tripId} currentUser={user} />}
+      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {mobileTab === 'chat' && (
+          <>
+            <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+              <CollabChat tripId={tripId} currentUser={user} />
+            </div>
+            <VoiceChat tripId={tripId} currentUser={user} sendWsMessage={sendWsMessage} />
+          </>
+        )}
         {mobileTab === 'notes' && <CollabNotes tripId={tripId} currentUser={user} />}
         {mobileTab === 'polls' && <CollabPolls tripId={tripId} currentUser={user} />}
         {mobileTab === 'next' && <WhatsNextWidget tripMembers={tripMembers} />}

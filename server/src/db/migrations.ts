@@ -910,6 +910,27 @@ function runMigrations(db: Database.Database): void {
         CREATE INDEX IF NOT EXISTS idx_gemini_execution_actions_execution ON gemini_execution_actions(execution_id);
       `);
     },
+    // Migration: Activities planning - linked to places with map display
+    () => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS activities (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+          place_id INTEGER REFERENCES places(id) ON DELETE SET NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          duration_minutes INTEGER DEFAULT 60,
+          status TEXT NOT NULL DEFAULT 'planned',
+          priority INTEGER DEFAULT 0,
+          planned_date TEXT,
+          created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_activities_trip ON activities(trip_id);
+        CREATE INDEX IF NOT EXISTS idx_activities_place ON activities(place_id);
+      `);
+    },
   ];
 
   if (currentVersion < migrations.length) {

@@ -37,6 +37,7 @@ import atlasRoutes from './routes/atlas';
 import memoriesRoutes from './routes/memories/unified';
 import notificationRoutes from './routes/notifications';
 import shareRoutes from './routes/share';
+import activitiesRoutes from './routes/activities';
 import { mcpHandler } from './mcp';
 import { Addon } from './types';
 import { getPhotoProviderConfig } from './services/memories/helpersService';
@@ -188,6 +189,7 @@ export function createApp(): express.Application {
   app.use('/api/trips/:tripId/collab', collabRoutes);
   app.use('/api/trips/:tripId/reservations', reservationsRoutes);
   app.use('/api/trips/:tripId/days/:dayId/notes', dayNotesRoutes);
+  app.use('/api/trips/:tripId/activities', activitiesRoutes);
   app.get('/api/health', (_req: Request, res: Response) => res.json({ status: 'ok' }));
   app.use('/api', assignmentsRoutes);
   app.use('/api/tags', tagsRoutes);
