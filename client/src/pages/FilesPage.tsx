@@ -54,14 +54,14 @@ export default function FilesPage(): React.ReactElement {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="w-10 h-10 border-4 border-slate-200 border-t-slate-700 rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
+        <div className="w-10 h-10 border-4 rounded-full animate-spin" style={{ borderColor: 'var(--border-primary)', borderTopColor: 'var(--text-primary)' }}></div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen" style={{ background: 'var(--bg-primary)' }}>
       <Navbar tripTitle={trip?.name} tripId={tripId} showBack onBack={() => navigate(`/trips/${tripId}`)} />
 
       <div style={{ paddingTop: 'var(--nav-h)' }}>
@@ -69,7 +69,8 @@ export default function FilesPage(): React.ReactElement {
           <div className="flex items-center gap-3 mb-6">
             <Link
               to={`/trips/${tripId}`}
-              className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+              className="flex items-center gap-1 text-sm transition-colors"
+              style={{ color: 'var(--text-muted)' }}
             >
               <ArrowLeft className="w-4 h-4" />
               {t('common.backToPlanning')}
@@ -78,8 +79,8 @@ export default function FilesPage(): React.ReactElement {
 
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Dateien & Dokumente</h1>
-              <p className="text-gray-500 text-sm">{files.length} Dateien für {trip?.name}</p>
+              <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{t('files.title')}</h1>
+              <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{t('files.count', { count: files.length })} — {trip?.name}</p>
             </div>
           </div>
 

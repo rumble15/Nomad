@@ -79,7 +79,7 @@ export default function GitHubPanel() {
         .replace(/`(.+?)`/g, '<code style="font-size:11px;padding:1px 4px;border-radius:4px;background:var(--bg-secondary)">$1</code>')
         .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => {
           const safeUrl = url.startsWith('http://') || url.startsWith('https://') ? url : '#'
-          return `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" style="color:#3b82f6;text-decoration:underline">${label}</a>`
+          return `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" style="color:#3b82f6;text-decoration:underline">${escapeHtml(label)}</a>`
         })
     }
 

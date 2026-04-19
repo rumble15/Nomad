@@ -75,7 +75,7 @@ function AdminNotificationsPanel({ t, toast }: { t: (k: string) => string; toast
     adminApi.getNotificationPreferences().then((data: any) => setMatrix(data)).catch(() => {})
   }, [])
 
-  if (!matrix) return <p style={{ fontSize: 12, color: 'var(--text-faint)', fontStyle: 'italic', padding: 16 }}>Loading…</p>
+  if (!matrix) return <p style={{ fontSize: 12, color: 'var(--text-faint)', fontStyle: 'italic', padding: 16 }}>{t('common.loading')}</p>
 
   const visibleChannels = (['inapp', 'email', 'webhook'] as const).filter(ch => {
     if (!matrix.available_channels[ch]) return false
@@ -83,14 +83,15 @@ function AdminNotificationsPanel({ t, toast }: { t: (k: string) => string; toast
   })
 
   const toggle = async (eventType: string, channel: string) => {
-    const current = matrix.preferences[eventType]?.[channel] ?? true
-    const updated = { ...matrix.preferences, [eventType]: { ...matrix.preferences[eventType], [channel]: !current } }
+    const prevPreferences = matrix.preferences
+    const current = prevPreferences[eventType]?.[channel] ?? true
+    const updated = { ...prevPreferences, [eventType]: { ...prevPreferences[eventType], [channel]: !current } }
     setMatrix((m: any) => m ? { ...m, preferences: updated } : m)
     setSaving(true)
     try {
       await adminApi.updateNotificationPreferences(updated)
     } catch {
-      setMatrix((m: any) => m ? { ...m, preferences: matrix.preferences } : m)
+      setMatrix((m: any) => m ? { ...m, preferences: prevPreferences } : m)
       toast.error(t('common.error'))
     } finally {
       setSaving(false)
@@ -113,7 +114,7 @@ function AdminNotificationsPanel({ t, toast }: { t: (k: string) => string; toast
           <p className="text-xs text-slate-400 mt-1">{t('admin.notifications.adminNotificationsHint')}</p>
         </div>
         <div className="p-6">
-          {saving && <p style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 8 }}>Saving…</p>}
+          {saving && <p style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 8 }}>{t('common.saving')}</p>}
           {/* Header row */}
           <div style={{ display: 'grid', gridTemplateColumns: `1fr ${visibleChannels.map(() => '80px').join(' ')}`, gap: 4, paddingBottom: 6, marginBottom: 4, borderBottom: '1px solid var(--border-primary)' }}>
             <span />
@@ -986,7 +987,7 @@ export default function AdminPage(): React.ReactElement {
                       type="text"
                       value={oidcConfig.display_name}
                       onChange={e => setOidcConfig(c => ({ ...c, display_name: e.target.value }))}
-                      placeholder='z.B. Google, Authentik, Keycloak'
+                      placeholder={t('admin.oidcDisplayNamePlaceholder')}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
                     />
                   </div>
@@ -1002,7 +1003,7 @@ export default function AdminPage(): React.ReactElement {
                     <p className="text-xs text-slate-400 mt-1">{t('admin.oidcIssuerHint')}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Discovery URL <span className="text-slate-400 font-normal">(optional)</span></label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">{t('admin.oidcDiscoveryUrlOptional')}</label>
                     <input
                       type="url"
                       value={oidcConfig.discovery_url}
@@ -1010,7 +1011,7 @@ export default function AdminPage(): React.ReactElement {
                       placeholder='https://auth.example.com/application/o/trek/.well-known/openid-configuration'
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-400 focus:border-transparent"
                     />
-                    <p className="text-xs text-slate-400 mt-1">Override the auto-constructed discovery URL. Required for providers like Authentik where the endpoint is not at <code className="bg-slate-100 px-1 rounded">{'<issuer>/.well-known/openid-configuration'}</code>.</p>
+                    <p className="text-xs text-slate-400 mt-1">{t('admin.oidcDiscoveryUrlHint')}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Client ID</label>
@@ -1154,11 +1155,11 @@ export default function AdminPage(): React.ReactElement {
                   </div>
                   <div className={`p-6 space-y-3 ${!emailActive ? 'opacity-50 pointer-events-none' : ''}`}>
                     {smtpLoaded && [
-                      { key: 'smtp_host', label: 'SMTP Host', placeholder: 'mail.example.com' },
-                      { key: 'smtp_port', label: 'SMTP Port', placeholder: '587' },
-                      { key: 'smtp_user', label: 'SMTP User', placeholder: 'trek@example.com' },
-                      { key: 'smtp_pass', label: 'SMTP Password', placeholder: '••••••••', type: 'password' },
-                      { key: 'smtp_from', label: 'From Address', placeholder: 'trek@example.com' },
+                      { key: 'smtp_host', label: t('admin.smtp.host'), placeholder: 'mail.example.com' },
+                      { key: 'smtp_port', label: t('admin.smtp.port'), placeholder: '587' },
+                      { key: 'smtp_user', label: t('admin.smtp.user'), placeholder: 'trek@example.com' },
+                      { key: 'smtp_pass', label: t('admin.smtp.pass'), placeholder: '••••••••', type: 'password' },
+                      { key: 'smtp_from', label: t('admin.smtp.from'), placeholder: 'trek@example.com' },
                     ].map(field => (
                       <div key={field.key}>
                         <label className="block text-xs font-medium text-slate-500 mb-1">{field.label}</label>
@@ -1173,8 +1174,8 @@ export default function AdminPage(): React.ReactElement {
                     ))}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0' }}>
                       <div>
-                        <span className="text-xs font-medium text-slate-500">Skip TLS certificate check</span>
-                        <p className="text-[10px] text-slate-400 mt-0.5">Enable for self-signed certificates on local mail servers</p>
+                        <span className="text-xs font-medium text-slate-500">{t('admin.smtp.skipTls')}</span>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{t('admin.smtp.skipTlsHint')}</p>
                       </div>
                       <button onClick={() => {
                         const newVal = smtpValues.smtp_skip_tls_verify === 'true' ? 'false' : 'true'
