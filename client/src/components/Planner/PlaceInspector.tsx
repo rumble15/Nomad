@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { getAuthUrl } from '../../api/authUrl'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { X, Clock, MapPin, ExternalLink, Phone, Euro, Edit2, Trash2, Plus, Minus, ChevronDown, ChevronUp, FileText, Upload, File, FileImage, Star, Navigation, Users, Mountain, TrendingUp } from 'lucide-react'
+import { X, Clock, MapPin, ExternalLink, Phone, Euro, Edit2, Trash2, Plus, Minus, ChevronDown, ChevronUp, FileText, Upload, File, FileImage, Star, Navigation, Users, Mountain, TrendingUp, Sparkles, RefreshCw } from 'lucide-react'
 import PlaceAvatar from '../shared/PlaceAvatar'
-import { mapsApi } from '../../api/client'
+import { mapsApi, placesApi } from '../../api/client'
 import { useSettingsStore } from '../../store/settingsStore'
 import { getCategoryIcon } from '../shared/categoryIcons'
 import { useTranslation } from '../../i18n'
@@ -107,6 +107,7 @@ interface TripMember {
 
 interface PlaceInspectorProps {
   place: Place | null
+  tripId?: number | string
   categories: Category[]
   days: Day[]
   selectedDayId: number | null
@@ -128,7 +129,7 @@ interface PlaceInspectorProps {
 }
 
 export default function PlaceInspector({
-  place, categories, days, selectedDayId, selectedAssignmentId, assignments, reservations = [],
+  place, tripId, categories, days, selectedDayId, selectedAssignmentId, assignments, reservations = [],
   onClose, onEdit, onDelete, onAssignToDay, onRemoveAssignment,
   files, onFileUpload, tripMembers = [], onSetParticipants, onUpdatePlace,
   leftWidth = 0, rightWidth = 0,
@@ -143,6 +144,14 @@ export default function PlaceInspector({
   const nameInputRef = useRef(null)
   const fileInputRef = useRef(null)
   const googleDetails = usePlaceDetails(place?.google_place_id, place?.osm_id, language)
+
+  // Activity planning state
+  const [activityText, setActivityText] = useState<string>('')
+  const [activityLoading, setActivityLoading] = useState(false)
+  const [activityError, setActivityError] = useState<string | null>(null)
+  const [activityVisible, setActivityVisible] = useState(false)
+  const cancelActivityRef = useRef<(() => void) | null>(null)
+  const prevPlaceIdRef = useRef<number | null>(null)
 
   const startNameEdit = () => {
     if (!onUpdatePlace) return
@@ -163,6 +172,35 @@ export default function PlaceInspector({
     if (e.key === 'Enter') { e.preventDefault(); commitNameEdit() }
     if (e.key === 'Escape') setEditingName(false)
   }
+
+  // Cancel running activity stream when place changes
+  useEffect(() => {
+    if (place?.id !== prevPlaceIdRef.current) {
+      if (cancelActivityRef.current) { cancelActivityRef.current(); cancelActivityRef.current = null }
+      setActivityText('')
+      setActivityLoading(false)
+      setActivityError(null)
+      setActivityVisible(false)
+      prevPlaceIdRef.current = place?.id ?? null
+    }
+  }, [place?.id])
+
+  const handleGenerateActivities = useCallback(() => {
+    if (!place || !tripId) return
+    if (cancelActivityRef.current) { cancelActivityRef.current(); cancelActivityRef.current = null }
+    setActivityText('')
+    setActivityError(null)
+    setActivityLoading(true)
+    setActivityVisible(true)
+    const cancel = placesApi.streamActivityPlan(
+      tripId,
+      place.id,
+      language || 'en',
+      (chunk) => setActivityText(prev => prev + chunk),
+      (error) => { setActivityLoading(false); if (error) setActivityError(error) },
+    )
+    cancelActivityRef.current = cancel
+  }, [place, tripId, language])
 
   if (!place) return null
 
@@ -593,6 +631,64 @@ export default function PlaceInspector({
             </div>
           )}
           </div>
+
+          {/* Activity Planning Panel — Agent UI with Gemini streaming */}
+          {tripId && (
+            <div style={{ background: 'var(--bg-hover)', borderRadius: 10, overflow: 'hidden', margin: '0 0 2px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', gap: 6 }}>
+                <Sparkles size={13} color="#8b5cf6" />
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, flex: 1 }}>
+                  {t('inspector.activities')}
+                </span>
+                {activityVisible && !activityLoading && (
+                  <button
+                    onClick={() => { setActivityVisible(false); setActivityText(''); setActivityError(null) }}
+                    style={{ fontSize: 10, color: 'var(--text-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: 6 }}
+                  >
+                    {t('inspector.activitiesHide')}
+                  </button>
+                )}
+                {(!activityVisible || activityError) && !activityLoading && (
+                  <button
+                    onClick={handleGenerateActivities}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      fontSize: 11, fontWeight: 600, color: 'white',
+                      background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                      border: 'none', borderRadius: 99, padding: '3px 10px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {activityError ? (
+                      <><RefreshCw size={10} />{t('inspector.activitiesRetry')}</>
+                    ) : (
+                      <><Sparkles size={10} />{t('inspector.activitiesGenerate')}</>
+                    )}
+                  </button>
+                )}
+                {activityLoading && (
+                  <span style={{ fontSize: 10, color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 10, height: 10, border: '1.5px solid #8b5cf6', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin .7s linear infinite' }} />
+                    {t('inspector.activitiesGenerating')}
+                  </span>
+                )}
+              </div>
+              {activityError && (
+                <div style={{ padding: '4px 12px 10px', fontSize: 12, color: '#ef4444' }}>
+                  {t('inspector.activitiesError')}
+                </div>
+              )}
+              {activityVisible && activityText && (
+                <div className="collab-note-md" style={{ padding: '0 12px 10px', fontSize: 12, color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                  <Markdown remarkPlugins={[remarkGfm]}>{activityText}</Markdown>
+                  {activityLoading && (
+                    <span style={{ display: 'inline-block', width: 6, height: 13, background: '#8b5cf6', borderRadius: 1, animation: 'blink 1s step-end infinite', verticalAlign: 'middle', marginLeft: 2 }} />
+                  )}
+                </div>
+              )}
+              <style>{`@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
+            </div>
+          )}
 
         </div>
 

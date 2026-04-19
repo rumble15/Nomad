@@ -876,6 +876,12 @@ const cs: Record<string, string | { name: string; category: string }[]> = {
   'inspector.editRes': 'Upravit rezervaci',
   'inspector.participants': 'Účastníci',
   'inspector.trackStats': 'Data trasy',
+  'inspector.activities': 'Aktivity',
+  'inspector.activitiesGenerate': 'Plánovat aktivity',
+  'inspector.activitiesGenerating': 'Generování plánu aktivit…',
+  'inspector.activitiesError': 'Plán aktivit se nepodařilo vytvořit.',
+  'inspector.activitiesRetry': 'Zkusit znovu',
+  'inspector.activitiesHide': 'Skrýt',
 
   // Rezervace (Reservations)
   'reservations.title': 'Rezervace',

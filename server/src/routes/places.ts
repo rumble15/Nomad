@@ -160,4 +160,52 @@ router.delete('/:id', authenticate, requireTripAccess, (req: Request, res: Respo
   broadcast(tripId, 'place:deleted', { placeId: Number(id) }, req.headers['x-socket-id'] as string);
 });
 
+/**
+ * POST /trips/:tripId/places/:id/activity-plan
+ * Streams an AI-generated activity plan for the place via Server-Sent Events (Agent UI protocol).
+ * Query param: lang (optional, e.g. "de", "en")
+ */
+router.post('/:id/activity-plan', authenticate, requireTripAccess, async (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  const { tripId, id } = req.params;
+  const lang = typeof req.query.lang === 'string' && req.query.lang.trim() ? req.query.lang.trim() : 'en';
+
+  const place = getPlace(tripId, id);
+  if (!place) {
+    return res.status(404).json({ error: 'Place not found' });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  // Enrich context with Google/OSM details when available
+  const { getPlaceDetails } = await import('../services/mapsService');
+  let googleDetails: Record<string, unknown> = {};
+  const detailId = place.google_place_id || place.osm_id;
+  if (detailId) {
+    try {
+      const result = await getPlaceDetails(authReq.user.id, detailId, lang);
+      googleDetails = result.place as Record<string, unknown>;
+    } catch {
+      // proceed without enriched details
+    }
+  }
+
+  const { streamPlaceActivityPlan } = await import('../services/geminiActivityService');
+  await streamPlaceActivityPlan({
+    name: place.name,
+    address: place.address ?? null,
+    description: place.description ?? place.notes ?? null,
+    website: place.website ?? (googleDetails.website as string | null) ?? null,
+    phone: place.phone ?? (googleDetails.phone as string | null) ?? null,
+    rating: (googleDetails.rating as number | null) ?? null,
+    opening_hours: (googleDetails.opening_hours as string[] | null) ?? null,
+    summary: (googleDetails.summary as string | null) ?? null,
+    trip_language: lang,
+  }, res);
+});
+
 export default router;

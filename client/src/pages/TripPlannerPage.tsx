@@ -832,6 +832,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
             {selectedPlace && !isMobile && (
               <PlaceInspector
                 place={selectedPlace}
+                tripId={tripId}
                 categories={categories}
                 days={days}
                 selectedDayId={selectedDayId}
@@ -880,6 +881,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
                 <div style={{ width: '100%', maxHeight: '85vh' }} onClick={e => e.stopPropagation()}>
                   <PlaceInspector
                     place={selectedPlace}
+                    tripId={tripId}
                     categories={categories}
                     days={days}
                     selectedDayId={selectedDayId}

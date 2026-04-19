@@ -903,6 +903,12 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'inspector.editRes': 'Edit Reservation',
   'inspector.participants': 'Participants',
   'inspector.trackStats': 'Track Stats',
+  'inspector.activities': 'Activities',
+  'inspector.activitiesGenerate': 'Plan Activities',
+  'inspector.activitiesGenerating': 'Generating activity plan…',
+  'inspector.activitiesError': 'Could not generate activity plan.',
+  'inspector.activitiesRetry': 'Retry',
+  'inspector.activitiesHide': 'Hide',
 
   // Reservations
   'reservations.title': 'Bookings',

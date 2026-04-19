@@ -874,6 +874,12 @@ const nl: Record<string, string> = {
   'inspector.editRes': 'Reservering bewerken',
   'inspector.participants': 'Deelnemers',
   'inspector.trackStats': 'Routegegevens',
+  'inspector.activities': 'Activiteiten',
+  'inspector.activitiesGenerate': 'Activiteiten Plannen',
+  'inspector.activitiesGenerating': 'Activiteitenplan genereren…',
+  'inspector.activitiesError': 'Kan geen activiteitenplan genereren.',
+  'inspector.activitiesRetry': 'Opnieuw proberen',
+  'inspector.activitiesHide': 'Verbergen',
 
   // Reservations
   'reservations.title': 'Boekingen',
