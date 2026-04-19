@@ -878,6 +878,12 @@ const ar: Record<string, string | { name: string; category: string }[]> = {
   'inspector.editRes': 'تعديل الحجز',
   'inspector.participants': 'المشاركون',
   'inspector.trackStats': 'بيانات المسار',
+  'inspector.activities': 'الأنشطة',
+  'inspector.activitiesGenerate': 'تخطيط الأنشطة',
+  'inspector.activitiesGenerating': 'جارٍ إنشاء خطة الأنشطة…',
+  'inspector.activitiesError': 'تعذّر إنشاء خطة الأنشطة.',
+  'inspector.activitiesRetry': 'إعادة المحاولة',
+  'inspector.activitiesHide': 'إخفاء',
 
   // Reservations
   'reservations.title': 'الحجوزات',

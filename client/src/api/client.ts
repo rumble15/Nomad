@@ -108,6 +108,63 @@ export const placesApi = {
   },
   importGoogleList: (tripId: number | string, url: string) =>
     apiClient.post(`/trips/${tripId}/places/import/google-list`, { url }).then(r => r.data),
+  /**
+   * Streams an AI-generated activity plan for the place via Server-Sent Events (Agent UI protocol).
+   * Returns a cancel function. onText is called for each streamed chunk, onDone when finished.
+   */
+  streamActivityPlan: (
+    tripId: number | string,
+    id: number | string,
+    lang: string,
+    onText: (chunk: string) => void,
+    onDone: (error?: string) => void,
+  ): (() => void) => {
+    const controller = new AbortController()
+    const url = `/api/trips/${tripId}/places/${id}/activity-plan?lang=${encodeURIComponent(lang)}`
+    fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({})) as { error?: string }
+          onDone(data.error || `HTTP ${res.status}`)
+          return
+        }
+        const reader = res.body?.getReader()
+        if (!reader) { onDone('No response body'); return }
+        const decoder = new TextDecoder()
+        let lineBuffer = ''
+        const pump = (): Promise<void> =>
+          reader.read().then(({ done, value }) => {
+            if (done) { onDone(); return }
+            lineBuffer += decoder.decode(value, { stream: true })
+            const lines = lineBuffer.split('\n')
+            lineBuffer = lines.pop() ?? ''
+            for (const line of lines) {
+              const trimmed = line.trimEnd()
+              if (trimmed.startsWith('event: error')) continue
+              if (trimmed.startsWith('event: done')) { onDone(); return }
+              if (!trimmed.startsWith('data:')) continue
+              const jsonStr = trimmed.slice(5).trim()
+              if (!jsonStr || jsonStr === '{}') continue
+              try {
+                const payload = JSON.parse(jsonStr) as { text?: string; message?: string }
+                if (payload.message) { onDone(payload.message); return }
+                if (payload.text) onText(payload.text)
+              } catch { /* skip malformed chunks */ }
+            }
+            return pump()
+          })
+        pump().catch(() => onDone())
+      })
+      .catch((err: Error) => {
+        if (err.name !== 'AbortError') onDone(err.message)
+      })
+    return () => controller.abort()
+  },
 }
 
 export const assignmentsApi = {

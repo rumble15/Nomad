@@ -854,6 +854,12 @@ const zhTw: Record<string, string> = {
   'inspector.editRes': '編輯預訂',
   'inspector.participants': '參與者',
   'inspector.trackStats': '軌跡資料',
+  'inspector.activities': '活動',
+  'inspector.activitiesGenerate': '計畫活動',
+  'inspector.activitiesGenerating': '正在生成活動計劃…',
+  'inspector.activitiesError': '無法生成活動計劃。',
+  'inspector.activitiesRetry': '重試',
+  'inspector.activitiesHide': '隱藏',
 
   // Reservations
   'reservations.title': '預訂',

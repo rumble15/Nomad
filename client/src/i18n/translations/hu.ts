@@ -875,6 +875,12 @@ const hu: Record<string, string | { name: string; category: string }[]> = {
   'inspector.editRes': 'Foglalás szerkesztése',
   'inspector.participants': 'Résztvevők',
   'inspector.trackStats': 'Útvonal adatok',
+  'inspector.activities': 'Tevékenységek',
+  'inspector.activitiesGenerate': 'Tevékenységek tervezése',
+  'inspector.activitiesGenerating': 'Tevékenységterv létrehozása…',
+  'inspector.activitiesError': 'A tevékenységtervet nem sikerült létrehozni.',
+  'inspector.activitiesRetry': 'Újra próbálni',
+  'inspector.activitiesHide': 'Elrejtés',
 
   // Foglalások
   'reservations.title': 'Foglalások',

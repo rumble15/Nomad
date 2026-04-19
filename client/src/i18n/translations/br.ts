@@ -859,6 +859,12 @@ const br: Record<string, string | { name: string; category: string }[]> = {
   'inspector.editRes': 'Editar reserva',
   'inspector.participants': 'Participantes',
   'inspector.trackStats': 'Dados da trilha',
+  'inspector.activities': 'Atividades',
+  'inspector.activitiesGenerate': 'Planejar Atividades',
+  'inspector.activitiesGenerating': 'Gerando plano de atividades…',
+  'inspector.activitiesError': 'Não foi possível gerar o plano de atividades.',
+  'inspector.activitiesRetry': 'Tentar novamente',
+  'inspector.activitiesHide': 'Ocultar',
 
   // Reservations
   'reservations.title': 'Reservas',

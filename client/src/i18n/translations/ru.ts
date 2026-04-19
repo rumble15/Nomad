@@ -874,6 +874,12 @@ const ru: Record<string, string> = {
   'inspector.editRes': 'Редактировать бронирование',
   'inspector.participants': 'Участники',
   'inspector.trackStats': 'Данные маршрута',
+  'inspector.activities': 'Активности',
+  'inspector.activitiesGenerate': 'Запланировать активности',
+  'inspector.activitiesGenerating': 'Создание плана активностей…',
+  'inspector.activitiesError': 'Не удалось создать план активностей.',
+  'inspector.activitiesRetry': 'Повторить',
+  'inspector.activitiesHide': 'Скрыть',
 
   // Reservations
   'reservations.title': 'Бронирования',

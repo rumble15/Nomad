@@ -875,6 +875,12 @@ const it: Record<string, string | { name: string; category: string }[]> = {
   'inspector.editRes': 'Modifica prenotazione',
   'inspector.participants': 'Partecipanti',
   'inspector.trackStats': 'Dati del percorso',
+  'inspector.activities': 'Attività',
+  'inspector.activitiesGenerate': 'Pianifica Attività',
+  'inspector.activitiesGenerating': 'Generazione del piano attività…',
+  'inspector.activitiesError': 'Impossibile generare il piano attività.',
+  'inspector.activitiesRetry': 'Riprova',
+  'inspector.activitiesHide': 'Nascondi',
 
   // Reservations
   'reservations.title': 'Prenotazioni',

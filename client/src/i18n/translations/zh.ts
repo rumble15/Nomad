@@ -874,6 +874,12 @@ const zh: Record<string, string> = {
   'inspector.editRes': '编辑预订',
   'inspector.participants': '参与者',
   'inspector.trackStats': '轨迹数据',
+  'inspector.activities': '活动',
+  'inspector.activitiesGenerate': '计划活动',
+  'inspector.activitiesGenerating': '正在生成活动计划…',
+  'inspector.activitiesError': '无法生成活动计划。',
+  'inspector.activitiesRetry': '重试',
+  'inspector.activitiesHide': '隐藏',
 
   // Reservations
   'reservations.title': '预订',
