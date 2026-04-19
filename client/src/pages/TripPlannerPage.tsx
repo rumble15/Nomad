@@ -23,7 +23,7 @@ import BudgetPanel from '../components/Budget/BudgetPanel'
 import CollabPanel from '../components/Collab/CollabPanel'
 import Navbar from '../components/Layout/Navbar'
 import { useToast } from '../components/shared/Toast'
-import { Map as MapIcon, X, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Ticket, PackageCheck, Wallet, FolderOpen, Camera, Users, Satellite } from 'lucide-react'
+import { Map as MapIcon, X, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Ticket, PackageCheck, Wallet, FolderOpen, Camera, Users, Satellite, Zap } from 'lucide-react'
 import { useTranslation } from '../i18n'
 import { addonsApi, accommodationsApi, authApi, tripsApi, assignmentsApi, mapsApi, reservationsApi } from '../api/client'
 import ConfirmDialog from '../components/shared/ConfirmDialog'
@@ -32,6 +32,7 @@ import { useTripWebSocket } from '../hooks/useTripWebSocket'
 import { useRouteCalculation } from '../hooks/useRouteCalculation'
 import { usePlaceSelection } from '../hooks/usePlaceSelection'
 import { usePlannerHistory } from '../hooks/usePlannerHistory'
+import ActivitiesPanel from '../components/Planner/ActivitiesPanel'
 import type { Accommodation, TripMember, Day, Place, Reservation, PackingItem, TodoItem } from '../types'
 import { ListTodo } from 'lucide-react'
 
@@ -125,6 +126,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
   const TRIP_TABS = [
     { id: 'plan', label: t('trip.tabs.plan'), icon: MapIcon },
     { id: 'buchungen', label: t('trip.tabs.reservations'), shortLabel: t('trip.tabs.reservationsShort'), icon: Ticket },
+    { id: 'aktivitaeten', label: 'Aktivitäten', shortLabel: 'Aktivität', icon: Zap },
     ...(enabledAddons.packing ? [{ id: 'listen', label: t('trip.tabs.lists'), shortLabel: t('trip.tabs.listsShort'), icon: PackageCheck }] : []),
     ...(enabledAddons.budget ? [{ id: 'finanzplan', label: t('trip.tabs.budget'), icon: Wallet }] : []),
     ...(enabledAddons.documents ? [{ id: 'dateien', label: t('trip.tabs.files'), icon: FolderOpen }] : []),
@@ -965,6 +967,22 @@ export default function TripPlannerPage(): React.ReactElement | null {
                   onDelete={handleDeleteReservation}
                   onNavigateToFiles={() => handleTabChange('dateien')}
                 />
+          </div>
+        )}
+
+        {activeTab === 'aktivitaeten' && (
+          <div style={{ height: '100%', maxWidth: 900, margin: '0 auto', width: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <ActivitiesPanel
+              tripId={Number(tripId)}
+              places={places}
+              onActivityClick={(lat, lng, title) => {
+                handleTabChange('plan')
+                setTimeout(() => {
+                  // Brief timeout to let the map tab render before centering
+                  setFitKey(k => k + 1)
+                }, 100)
+              }}
+            />
           </div>
         )}
 
